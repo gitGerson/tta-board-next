@@ -85,6 +85,18 @@ function dueDate(value: string): string {
   }).format(new Date(value));
 }
 
+function dateRange(startAt: string | null, dueAt: string | null): string | null {
+  if (startAt && dueAt) return `${dueDate(startAt)} - ${dueDate(dueAt)}`;
+  if (dueAt) return dueDate(dueAt);
+  if (startAt) return `From ${dueDate(startAt)}`;
+  return null;
+}
+
+function donePercent(doneItems: number, totalItems: number): number {
+  if (totalItems <= 0) return 0;
+  return Math.round((doneItems / totalItems) * 100);
+}
+
 function initials(name: string): string {
   return name
     .split(/\s+/)
@@ -182,6 +194,8 @@ function KanbanCard({
   });
 
   const status = dueStatus(card.dueAt, todayMs);
+  const schedule = dateRange(card.startAt, card.dueAt);
+  const percent = donePercent(card.doneItems, card.totalItems);
 
   return (
     <article
@@ -220,12 +234,12 @@ function KanbanCard({
           {card.title}
         </h3>
 
-        {(card.dueAt || status) && (
+        {(schedule || status) && (
           <div className="mt-2 flex items-center gap-2">
-            {card.dueAt && (
+            {schedule && (
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
                 <Clock3 size={13} aria-hidden="true" />
-                {dueDate(card.dueAt)}
+                {schedule}
               </span>
             )}
             {status && (
@@ -235,6 +249,34 @@ function KanbanCard({
                 {status.label}
               </span>
             )}
+          </div>
+        )}
+
+        {card.totalItems > 0 && (
+          <div className="mt-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                Progress
+              </span>
+              <span className="text-[11px] font-extrabold text-slate-500">
+                {percent}%
+              </span>
+            </div>
+            <div
+              className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100"
+              role="progressbar"
+              aria-valuenow={percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`${card.doneItems} of ${card.totalItems} checklist items done`}
+            >
+              <div
+                className={`h-full rounded-full transition-[width] ${
+                  percent === 100 ? "bg-[#4f772d]" : "bg-[#8bc34a]"
+                }`}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
           </div>
         )}
 

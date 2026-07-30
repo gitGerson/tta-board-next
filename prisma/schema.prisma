@@ -8,19 +8,22 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
-  ldapGuid      String    @unique @map("ldap_guid")
-  username      String    @unique
-  displayName   String    @map("display_name")
-  email         String
-  isActive      Boolean   @default(true) @map("is_active")
-  lastLoginAt   DateTime  @map("last_login_at") @db.Timestamptz(3)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  boards        Board[]   @relation("BoardCreator")
-  assignedCards Card[]    @relation("CardAssignee")
-  createdCards  Card[]    @relation("CardCreator")
-  comments      Comment[]
+  id                      String                  @id @default(uuid()) @db.Uuid
+  ldapGuid                String                  @unique @map("ldap_guid")
+  username                String                  @unique
+  displayName             String                  @map("display_name")
+  email                   String
+  isActive                Boolean                 @default(true) @map("is_active")
+  lastLoginAt             DateTime                @map("last_login_at") @db.Timestamptz(3)
+  createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  boards                  Board[]                 @relation("BoardCreator")
+  assignedCards           Card[]                  @relation("CardAssignee")
+  createdCards            Card[]                  @relation("CardCreator")
+  comments                Comment[]
+  checklistGroupsAsPic    ChecklistGroup[]        @relation("ChecklistGroupPic")
+  completedChecklistItems ChecklistItem[]         @relation("ChecklistItemCompleter")
+  checklistAssignments    ChecklistItemAssignee[]
 
   @@map("users")
 }
@@ -55,26 +58,83 @@ model BoardColumn {
 }
 
 model Card {
-  id          String      @id @default(uuid()) @db.Uuid
-  columnId    String      @map("column_id") @db.Uuid
-  title       String
-  description String?
-  position    Int
-  dueAt       DateTime?   @map("due_at") @db.Timestamptz(3)
-  assigneeId  String?     @map("assignee_id") @db.Uuid
-  createdById String      @map("created_by_id") @db.Uuid
-  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
-  column      BoardColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  assignee    User?       @relation("CardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  createdBy   User        @relation("CardCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  labels      CardLabel[]
-  comments    Comment[]
+  id              String           @id @default(uuid()) @db.Uuid
+  columnId        String           @map("column_id") @db.Uuid
+  title           String
+  description     String?
+  position        Int
+  startAt         DateTime?        @map("start_at") @db.Timestamptz(3)
+  dueAt           DateTime?        @map("due_at") @db.Timestamptz(3)
+  assigneeId      String?          @map("assignee_id") @db.Uuid
+  createdById     String           @map("created_by_id") @db.Uuid
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  column          BoardColumn      @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  assignee        User?            @relation("CardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy       User             @relation("CardCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  labels          CardLabel[]
+  comments        Comment[]
+  checklistGroups ChecklistGroup[]
 
   @@index([columnId, position])
   @@index([assigneeId])
   @@index([createdById])
   @@map("cards")
+}
+
+/// A named stage of work inside a card. Scoped to the card alone, so a card's
+/// progress has one denominator and does not shift when it changes column.
+model ChecklistGroup {
+  id          String          @id @default(uuid()) @db.Uuid
+  cardId      String          @map("card_id") @db.Uuid
+  name        String
+  description String?
+  position    Int
+  picId       String?         @map("pic_id") @db.Uuid
+  startAt     DateTime?       @map("start_at") @db.Timestamptz(3)
+  dueAt       DateTime?       @map("due_at") @db.Timestamptz(3)
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+  card        Card            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  pic         User?           @relation("ChecklistGroupPic", fields: [picId], references: [id], onDelete: SetNull)
+  items       ChecklistItem[]
+
+  @@index([cardId, position])
+  @@index([picId])
+  @@map("checklist_groups")
+}
+
+model ChecklistItem {
+  id            String                  @id @default(uuid()) @db.Uuid
+  groupId       String                  @map("group_id") @db.Uuid
+  title         String
+  description   String?
+  position      Int
+  dueAt         DateTime?               @map("due_at") @db.Timestamptz(3)
+  isDone        Boolean                 @default(false) @map("is_done")
+  completedAt   DateTime?               @map("completed_at") @db.Timestamptz(3)
+  completedById String?                 @map("completed_by_id") @db.Uuid
+  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
+  group         ChecklistGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  completedBy   User?                   @relation("ChecklistItemCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  assignees     ChecklistItemAssignee[]
+
+  @@index([groupId, position])
+  @@index([isDone])
+  @@index([completedById])
+  @@map("checklist_items")
+}
+
+model ChecklistItemAssignee {
+  itemId String        @map("item_id") @db.Uuid
+  userId String        @map("user_id") @db.Uuid
+  item   ChecklistItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([itemId, userId])
+  @@index([userId])
+  @@map("checklist_item_assignees")
 }
 
 model Label {

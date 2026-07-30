@@ -31,10 +31,36 @@ export type CardSummaryDTO = {
   title: string;
   description: string | null;
   position: number;
+  startAt: string | null;
   dueAt: string | null;
   assignee: UserOptionDTO | null;
   labels: LabelDTO[];
   commentCount: number;
+  /** Checklist items across every group on the card, for the progress bar. */
+  doneItems: number;
+  totalItems: number;
+};
+
+export type ChecklistItemDTO = {
+  id: string;
+  title: string;
+  description: string | null;
+  position: number;
+  dueAt: string | null;
+  isDone: boolean;
+  completedAt: string | null;
+  assignees: UserOptionDTO[];
+};
+
+export type ChecklistGroupDTO = {
+  id: string;
+  name: string;
+  description: string | null;
+  position: number;
+  startAt: string | null;
+  dueAt: string | null;
+  pic: UserOptionDTO | null;
+  items: ChecklistItemDTO[];
 };
 
 export type BoardColumnDTO = {
@@ -68,6 +94,7 @@ export type CommentDTO = {
 export type CardDetailsDTO = CardSummaryDTO & {
   columnId: string;
   comments: CommentDTO[];
+  checklistGroups: ChecklistGroupDTO[];
 };
 
 /** Cached because the dashboard layout and its pages both need the list. */
@@ -99,6 +126,71 @@ export const listBoards = cache(async (): Promise<BoardSummaryDTO[]> => {
   }));
 });
 
+export type ProgressTally = { done: number; total: number };
+
+const NO_PROGRESS: ProgressTally = { done: 0, total: 0 };
+
+/**
+ * Rolls per-group item counts up to their cards. Split out from the queries so
+ * the arithmetic can be tested without a database.
+ */
+export function foldChecklistProgress(
+  groups: readonly { id: string; cardId: string }[],
+  tallies: readonly {
+    groupId: string;
+    isDone: boolean;
+    _count: { _all: number };
+  }[],
+): Map<string, ProgressTally> {
+  const cardIdByGroup = new Map(groups.map(({ id, cardId }) => [id, cardId]));
+  const progress = new Map<string, ProgressTally>();
+
+  // A card whose groups are all empty still reports 0/0 rather than going missing.
+  for (const { cardId } of groups) {
+    if (!progress.has(cardId)) {
+      progress.set(cardId, { done: 0, total: 0 });
+    }
+  }
+
+  for (const tally of tallies) {
+    const cardId = cardIdByGroup.get(tally.groupId);
+    if (!cardId) continue;
+
+    const current = progress.get(cardId) ?? { done: 0, total: 0 };
+    current.total += tally._count._all;
+    if (tally.isDone) {
+      current.done += tally._count._all;
+    }
+    progress.set(cardId, current);
+  }
+
+  return progress;
+}
+
+/**
+ * Checklist totals for every card on a board in two flat queries, rather than
+ * eager-loading each card's groups and items. Nesting them would multiply the
+ * board payload by the number of checklist items on it, and a caller that
+ * forgot the include would silently render every card as 0%.
+ */
+async function checklistProgressByCard(
+  boardId: string,
+): Promise<Map<string, ProgressTally>> {
+  const [groups, tallies] = await Promise.all([
+    db.checklistGroup.findMany({
+      where: { card: { column: { boardId } } },
+      select: { id: true, cardId: true },
+    }),
+    db.checklistItem.groupBy({
+      by: ["groupId", "isDone"],
+      where: { group: { card: { column: { boardId } } } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  return foldChecklistProgress(groups, tallies);
+}
+
 export async function getBoard(boardIdInput: string): Promise<BoardDTO> {
   await requireCurrentUser();
   const boardId = entityIdSchema.parse(boardIdInput);
@@ -126,6 +218,7 @@ export async function getBoard(boardIdInput: string): Promise<BoardDTO> {
               title: true,
               description: true,
               position: true,
+              startAt: true,
               dueAt: true,
               assignee: {
                 select: { id: true, displayName: true },
@@ -147,6 +240,8 @@ export async function getBoard(boardIdInput: string): Promise<BoardDTO> {
     throw new NotFoundError("Board");
   }
 
+  const progress = await checklistProgressByCard(board.id);
+
   return {
     id: board.id,
     name: board.name,
@@ -157,18 +252,25 @@ export async function getBoard(boardIdInput: string): Promise<BoardDTO> {
       id: column.id,
       name: column.name,
       position: column.position,
-      cards: column.cards.map((card) => ({
-        id: card.id,
-        title: card.title,
-        description: card.description,
-        position: card.position,
-        dueAt: card.dueAt?.toISOString() ?? null,
-        assignee: card.assignee
-          ? { id: card.assignee.id, name: card.assignee.displayName }
-          : null,
-        labels: card.labels.map(({ label }) => label),
-        commentCount: card._count.comments,
-      })),
+      cards: column.cards.map((card) => {
+        const tally = progress.get(card.id) ?? NO_PROGRESS;
+
+        return {
+          id: card.id,
+          title: card.title,
+          description: card.description,
+          position: card.position,
+          startAt: card.startAt?.toISOString() ?? null,
+          dueAt: card.dueAt?.toISOString() ?? null,
+          assignee: card.assignee
+            ? { id: card.assignee.id, name: card.assignee.displayName }
+            : null,
+          labels: card.labels.map(({ label }) => label),
+          commentCount: card._count.comments,
+          doneItems: tally.done,
+          totalItems: tally.total,
+        };
+      }),
     })),
   };
 }
@@ -196,6 +298,7 @@ export async function getCardDetails(
       title: true,
       description: true,
       position: true,
+      startAt: true,
       dueAt: true,
       assignee: {
         select: { id: true, displayName: true },
@@ -203,6 +306,35 @@ export async function getCardDetails(
       labels: {
         select: {
           label: { select: { id: true, name: true, color: true } },
+        },
+      },
+      checklistGroups: {
+        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          position: true,
+          startAt: true,
+          dueAt: true,
+          pic: { select: { id: true, displayName: true } },
+          items: {
+            orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              position: true,
+              dueAt: true,
+              isDone: true,
+              completedAt: true,
+              assignees: {
+                select: {
+                  user: { select: { id: true, displayName: true } },
+                },
+              },
+            },
+          },
         },
       },
       comments: {
@@ -225,18 +357,46 @@ export async function getCardDetails(
     return null;
   }
 
+  const checklistGroups = card.checklistGroups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    description: group.description,
+    position: group.position,
+    startAt: group.startAt?.toISOString() ?? null,
+    dueAt: group.dueAt?.toISOString() ?? null,
+    pic: group.pic ? { id: group.pic.id, name: group.pic.displayName } : null,
+    items: group.items.map((item) => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      position: item.position,
+      dueAt: item.dueAt?.toISOString() ?? null,
+      isDone: item.isDone,
+      completedAt: item.completedAt?.toISOString() ?? null,
+      assignees: item.assignees.map(({ user }) => ({
+        id: user.id,
+        name: user.displayName,
+      })),
+    })),
+  }));
+  const items = checklistGroups.flatMap((group) => group.items);
+
   return {
     id: card.id,
     columnId: card.columnId,
     title: card.title,
     description: card.description,
     position: card.position,
+    startAt: card.startAt?.toISOString() ?? null,
     dueAt: card.dueAt?.toISOString() ?? null,
     assignee: card.assignee
       ? { id: card.assignee.id, name: card.assignee.displayName }
       : null,
     labels: card.labels.map(({ label }) => label),
     commentCount: card._count.comments,
+    doneItems: items.filter((item) => item.isDone).length,
+    totalItems: items.length,
+    checklistGroups,
     comments: card.comments.map((comment) => ({
       id: comment.id,
       body: comment.body,

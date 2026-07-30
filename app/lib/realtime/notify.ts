@@ -15,7 +15,9 @@ export type MutationScope =
   | { kind: "none" }
   | { kind: "board"; boardId: string }
   | { kind: "column"; columnId: string }
-  | { kind: "card"; cardId: string };
+  | { kind: "card"; cardId: string }
+  | { kind: "checklistGroup"; groupId: string }
+  | { kind: "checklistItem"; itemId: string };
 
 export async function resolveBoardId(
   scope: MutationScope,
@@ -39,6 +41,24 @@ export async function resolveBoardId(
           select: { column: { select: { boardId: true } } },
         });
         return card?.column.boardId ?? null;
+      }
+      case "checklistGroup": {
+        const group = await db.checklistGroup.findUnique({
+          where: { id: entityIdSchema.parse(scope.groupId) },
+          select: { card: { select: { column: { select: { boardId: true } } } } },
+        });
+        return group?.card.column.boardId ?? null;
+      }
+      case "checklistItem": {
+        const item = await db.checklistItem.findUnique({
+          where: { id: entityIdSchema.parse(scope.itemId) },
+          select: {
+            group: {
+              select: { card: { select: { column: { select: { boardId: true } } } } },
+            },
+          },
+        });
+        return item?.group.card.column.boardId ?? null;
       }
     }
   } catch {

@@ -9,13 +9,20 @@ import {
 import type {
   CreateBoardInput,
   CreateCardInput,
+  CreateChecklistGroupInput,
+  CreateChecklistItemInput,
   CreateColumnInput,
   CreateCommentInput,
   CreateLabelInput,
   MoveCardInput,
+  MoveChecklistGroupInput,
+  MoveChecklistItemInput,
   MoveColumnInput,
   RenameColumnInput,
+  SetChecklistItemDoneInput,
   UpdateCardInput,
+  UpdateChecklistGroupInput,
+  UpdateChecklistItemInput,
 } from "@/app/lib/kanban/validation";
 import {
   createBoard,
@@ -33,6 +40,17 @@ import {
   updateCard,
 } from "@/app/lib/services/card-service";
 import { createComment } from "@/app/lib/services/comment-service";
+import {
+  createChecklistGroup,
+  createChecklistItem,
+  deleteChecklistGroup,
+  deleteChecklistItem,
+  moveChecklistGroup,
+  moveChecklistItem,
+  setChecklistItemDone,
+  updateChecklistGroup,
+  updateChecklistItem,
+} from "@/app/lib/services/checklist-service";
 import {
   notifyChanged,
   resolveBoardId,
@@ -178,5 +196,84 @@ export async function createCommentAction(
 ): Promise<KanbanActionResult> {
   return runAction({ scope: { kind: "card", cardId: input.cardId } }, () =>
     createComment(input),
+  );
+}
+
+export async function createChecklistGroupAction(
+  input: CreateChecklistGroupInput,
+): Promise<KanbanActionResult> {
+  return runAction({ scope: { kind: "card", cardId: input.cardId } }, () =>
+    createChecklistGroup(input),
+  );
+}
+
+export async function updateChecklistGroupAction(
+  input: UpdateChecklistGroupInput,
+): Promise<KanbanActionResult> {
+  return runAction(
+    { scope: { kind: "checklistGroup", groupId: input.groupId } },
+    () => updateChecklistGroup(input),
+  );
+}
+
+export async function moveChecklistGroupAction(
+  input: MoveChecklistGroupInput,
+): Promise<KanbanActionResult> {
+  return runAction(
+    { scope: { kind: "checklistGroup", groupId: input.groupId } },
+    () => moveChecklistGroup(input),
+  );
+}
+
+export async function deleteChecklistGroupAction(
+  groupId: string,
+): Promise<KanbanActionResult> {
+  // Deleting a group removes its items, which changes the card's progress bar.
+  return runAction({ scope: { kind: "checklistGroup", groupId } }, () =>
+    deleteChecklistGroup(groupId),
+  );
+}
+
+export async function createChecklistItemAction(
+  input: CreateChecklistItemInput,
+): Promise<KanbanActionResult> {
+  return runAction(
+    { scope: { kind: "checklistGroup", groupId: input.groupId } },
+    () => createChecklistItem(input),
+  );
+}
+
+export async function updateChecklistItemAction(
+  input: UpdateChecklistItemInput,
+): Promise<KanbanActionResult> {
+  return runAction(
+    { scope: { kind: "checklistItem", itemId: input.itemId } },
+    () => updateChecklistItem(input),
+  );
+}
+
+export async function moveChecklistItemAction(
+  input: MoveChecklistItemInput,
+): Promise<KanbanActionResult> {
+  return runAction(
+    { scope: { kind: "checklistItem", itemId: input.itemId } },
+    () => moveChecklistItem(input),
+  );
+}
+
+export async function setChecklistItemDoneAction(
+  input: SetChecklistItemDoneInput,
+): Promise<KanbanActionResult> {
+  return runAction(
+    { scope: { kind: "checklistItem", itemId: input.itemId } },
+    () => setChecklistItemDone(input),
+  );
+}
+
+export async function deleteChecklistItemAction(
+  itemId: string,
+): Promise<KanbanActionResult> {
+  return runAction({ scope: { kind: "checklistItem", itemId } }, () =>
+    deleteChecklistItem(itemId),
   );
 }

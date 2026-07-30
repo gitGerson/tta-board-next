@@ -13,6 +13,7 @@ import {
   type MoveCardInput,
   type UpdateCardInput,
 } from "@/app/lib/kanban/validation";
+import { assertActiveUsers } from "./user-validation";
 
 async function validateRelations(
   tx: Prisma.TransactionClient,
@@ -20,15 +21,7 @@ async function validateRelations(
   assigneeId: string | null | undefined,
   labelIds: string[] | undefined,
 ): Promise<void> {
-  if (assigneeId) {
-    const assignee = await tx.user.findFirst({
-      where: { id: assigneeId, isActive: true },
-      select: { id: true },
-    });
-    if (!assignee) {
-      throw new NotFoundError("Assignee");
-    }
-  }
+  await assertActiveUsers(tx, assigneeId ? [assigneeId] : []);
 
   if (labelIds) {
     const distinctIds = [...new Set(labelIds)];
@@ -66,6 +59,7 @@ export async function createCard(input: CreateCardInput) {
         columnId: column.id,
         title: data.title,
         description: data.description,
+        startAt: data.startAt,
         dueAt: data.dueAt,
         assigneeId: data.assigneeId,
         createdById: currentUser.id,
@@ -111,6 +105,7 @@ export async function updateCard(input: UpdateCardInput): Promise<void> {
         ...(data.description !== undefined
           ? { description: data.description }
           : {}),
+        ...(data.startAt !== undefined ? { startAt: data.startAt } : {}),
         ...(data.dueAt !== undefined ? { dueAt: data.dueAt } : {}),
         ...(data.assigneeId !== undefined
           ? { assigneeId: data.assigneeId }

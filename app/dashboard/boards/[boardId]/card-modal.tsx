@@ -30,6 +30,7 @@ import type {
 } from "@/app/lib/dal/boards";
 import type { AssignableUserDTO } from "@/app/lib/dal/users";
 import { Modal } from "@/app/dashboard/_components/modal";
+import { CardChecklists } from "./card-checklists";
 
 function dateInputValue(value: string | null): string {
   return value ? value.slice(0, 10) : "";
@@ -115,6 +116,7 @@ export function CardModal({
     const input = {
       title: String(form.get("title") || ""),
       description: String(form.get("description") || "") || null,
+      startAt: utcDate(form.get("startAt")),
       dueAt: utcDate(form.get("dueAt")),
       assigneeId: String(form.get("assigneeId") || "") || null,
       labelIds: form.getAll("labelIds").map(String),
@@ -252,7 +254,19 @@ export function CardModal({
             />
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="block text-sm font-semibold">
+              <span className="inline-flex items-center gap-2">
+                <CalendarDays size={16} aria-hidden="true" />
+                Start date
+              </span>
+              <input
+                name="startAt"
+                type="date"
+                defaultValue={dateInputValue(details?.startAt || null)}
+                className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none focus:border-[#689f38] focus:ring-3 focus:ring-[#8bc34a]/20"
+              />
+            </label>
             <label className="block text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
                 <CalendarDays size={16} aria-hidden="true" />
@@ -436,8 +450,23 @@ export function CardModal({
           )}
         </form>
 
+        {/*
+          Outside the card form on purpose: the checklist UI has forms of its
+          own, and nesting a form inside another is invalid HTML.
+        */}
+        {details && (
+          <div className="border-t border-slate-100 p-5 sm:p-6 lg:col-start-1">
+            <CardChecklists
+              cardId={details.id}
+              groups={details.checklistGroups}
+              users={users}
+              onError={setResult}
+            />
+          </div>
+        )}
+
         {editing && (
-          <aside className="border-t border-slate-200 bg-slate-50 p-5 sm:p-6 lg:border-l lg:border-t-0">
+          <aside className="border-t border-slate-200 bg-slate-50 p-5 sm:p-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:border-t-0">
             <div className="flex items-center gap-2">
               <MessageSquare size={18} className="text-[#689f38]" aria-hidden="true" />
               <h3 className="font-bold">Comments</h3>

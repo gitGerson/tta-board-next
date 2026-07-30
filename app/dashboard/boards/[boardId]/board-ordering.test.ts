@@ -14,10 +14,13 @@ function card(id: string, position: number): CardSummaryDTO {
     title: id,
     description: null,
     position,
+    startAt: null,
     dueAt: null,
     assignee: null,
     labels: [],
     commentCount: 0,
+    doneItems: 0,
+    totalItems: 0,
   };
 }
 
