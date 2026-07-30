@@ -2,10 +2,10 @@
 
 import {
   ArrowLeft,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
+  Clock3,
   GripVertical,
   MessageSquare,
   MoreHorizontal,
@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import {
   useEffect,
   useState,
+  useSyncExternalStore,
   useTransition,
   type FormEvent,
 } from "react";
@@ -55,10 +56,22 @@ type DragData =
   | { kind: "card"; cardId: string; columnId: string }
   | { kind: "column-drop"; columnId: string };
 
+const AVATAR_TONES = [
+  "bg-indigo-500",
+  "bg-sky-500",
+  "bg-violet-500",
+  "bg-emerald-500",
+  "bg-rose-500",
+  "bg-amber-500",
+];
+
+const DAY_MS = 86_400_000;
+
 function dueDate(value: string): string {
   return new Intl.DateTimeFormat("en", {
     month: "short",
     day: "numeric",
+    year: "numeric",
     timeZone: "UTC",
   }).format(new Date(value));
 }
@@ -72,15 +85,65 @@ function initials(name: string): string {
     .toUpperCase();
 }
 
+function avatarTone(seed: string): string {
+  let hash = 0;
+  for (const char of seed) {
+    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  }
+  return AVATAR_TONES[hash % AVATAR_TONES.length];
+}
+
+/** Today at UTC midnight, so due-date maths ignores the time of day. */
+function utcStartOfDay(value: number | string): number {
+  const date = new Date(value);
+  return Date.UTC(
+    date.getUTCFullYear(),
+    date.getUTCMonth(),
+    date.getUTCDate(),
+  );
+}
+
+const neverResubscribe = () => () => {};
+const todaySnapshot = () => utcStartOfDay(Date.now());
+const noTodayOnServer = () => null;
+
+/**
+ * Due-date badges depend on "now", which the server cannot know for the
+ * viewer, so the first paint renders without them and hydration fills in.
+ */
+function useTodayMs(): number | null {
+  return useSyncExternalStore(
+    neverResubscribe,
+    todaySnapshot,
+    noTodayOnServer,
+  );
+}
+
+function dueStatus(
+  dueAt: string | null,
+  todayMs: number | null,
+): { label: string; tone: string } | null {
+  if (!dueAt || todayMs === null) return null;
+  const days = Math.round((utcStartOfDay(dueAt) - todayMs) / DAY_MS);
+  if (days < 0) return { label: "Overdue", tone: "bg-red-100 text-red-600" };
+  if (days === 0)
+    return { label: "Today", tone: "bg-amber-100 text-amber-700" };
+  if (days <= 3)
+    return { label: `H-${days}`, tone: "bg-sky-100 text-sky-700" };
+  return null;
+}
+
 function KanbanCard({
   card,
   columnId,
   index,
+  todayMs,
   onOpen,
 }: {
   card: CardSummaryDTO;
   columnId: string;
   index: number;
+  todayMs: number | null;
   onOpen: () => void;
 }) {
   const { ref, handleRef, isDragging } = useSortable<DragData>({
@@ -92,75 +155,99 @@ function KanbanCard({
     data: { kind: "card", cardId: card.id, columnId },
   });
 
+  const status = dueStatus(card.dueAt, todayMs);
+
   return (
     <article
       ref={ref}
-      className={`group relative rounded-xl border bg-white p-4 shadow-sm transition ${
+      className={`group relative rounded-lg border bg-white px-3.5 py-3 transition ${
         isDragging
           ? "z-20 border-[#8bc34a] opacity-60 shadow-xl"
-          : "border-slate-200 hover:-translate-y-0.5 hover:border-[#b7d69b] hover:shadow-md"
+          : "border-slate-200/90 shadow-[0_1px_2px_rgb(15_23_42/0.06)] hover:border-slate-300 hover:shadow-md"
       }`}
     >
       <button
         ref={handleRef}
         type="button"
-        className="absolute right-2 top-2 grid size-8 cursor-grab place-items-center rounded-lg text-slate-300 opacity-100 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing focus-visible:opacity-100 focus-visible:outline-3 focus-visible:outline-[#689f38] sm:opacity-0 sm:group-hover:opacity-100"
+        className="absolute right-1.5 top-1.5 grid size-7 cursor-grab place-items-center rounded-lg text-slate-300 opacity-100 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing focus-visible:opacity-100 focus-visible:outline-3 focus-visible:outline-[#689f38] sm:opacity-0 sm:group-hover:opacity-100"
         aria-label={`Drag ${card.title}`}
       >
-        <GripVertical size={17} aria-hidden="true" />
+        <GripVertical size={16} aria-hidden="true" />
       </button>
       <button
         type="button"
         data-no-drag
         onClick={onOpen}
-        className="block w-full pr-7 text-left focus-visible:rounded focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#689f38]"
+        className="block w-full text-left focus-visible:rounded focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#689f38]"
       >
-        <h3 className="font-bold leading-snug text-slate-900">{card.title}</h3>
-        {card.description && (
-          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate-500">
-            {card.description}
-          </p>
-        )}
-
         {card.labels.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Labels">
+          <div className="flex flex-wrap gap-1 pr-7" aria-label="Labels">
             {card.labels.map((label) => (
               <span
                 key={label.id}
-                className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600"
+                title={label.name}
+                className="h-1.5 w-6 rounded-full"
+                style={{ backgroundColor: label.color }}
               >
-                <span
-                  className="size-2 rounded-full"
-                  style={{ backgroundColor: label.color }}
-                />
-                {label.name}
+                <span className="sr-only">{label.name}</span>
               </span>
             ))}
           </div>
         )}
 
-        <div className="mt-4 flex min-h-7 items-center gap-3 text-xs font-semibold text-slate-400">
-          {card.dueAt && (
-            <span className="inline-flex items-center gap-1">
-              <CalendarDays size={14} aria-hidden="true" />
-              {dueDate(card.dueAt)}
-            </span>
-          )}
-          {card.commentCount > 0 && (
-            <span className="inline-flex items-center gap-1">
-              <MessageSquare size={14} aria-hidden="true" />
-              {card.commentCount}
-            </span>
-          )}
-          {card.assignee && (
-            <span
-              className="ml-auto grid size-7 place-items-center rounded-full bg-[#e7f2dc] text-[10px] font-extrabold text-[#4f772d]"
-              title={card.assignee.name}
-              aria-label={`Assigned to ${card.assignee.name}`}
-            >
-              {initials(card.assignee.name)}
-            </span>
-          )}
+        <h3 className="mt-2 pr-7 text-[13px] font-extrabold uppercase leading-snug tracking-wide text-slate-800">
+          {card.title}
+        </h3>
+
+        {(card.dueAt || status) && (
+          <div className="mt-2 flex items-center gap-2">
+            {card.dueAt && (
+              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                <Clock3 size={13} aria-hidden="true" />
+                {dueDate(card.dueAt)}
+              </span>
+            )}
+            {status && (
+              <span
+                className={`ml-auto rounded-md px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${status.tone}`}
+              >
+                {status.label}
+              </span>
+            )}
+          </div>
+        )}
+
+        {card.description && (
+          <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500">
+            {card.description}
+          </p>
+        )}
+
+        <div className="mt-3 flex min-h-7 items-center gap-2 border-t border-slate-100 pt-2.5">
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+            Assigned to
+          </span>
+          <span className="ml-auto flex items-center gap-2">
+            {card.commentCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                <MessageSquare size={12} aria-hidden="true" />
+                {card.commentCount}
+              </span>
+            )}
+            {card.assignee ? (
+              <span
+                className={`grid size-7 place-items-center rounded-full text-[10px] font-extrabold text-white ring-2 ring-white ${avatarTone(card.assignee.id)}`}
+                title={card.assignee.name}
+                aria-label={`Assigned to ${card.assignee.name}`}
+              >
+                {initials(card.assignee.name)}
+              </span>
+            ) : (
+              <span className="text-[11px] font-semibold text-slate-300">
+                Unassigned
+              </span>
+            )}
+          </span>
         </div>
       </button>
     </article>
@@ -171,6 +258,7 @@ function KanbanColumn({
   column,
   index,
   totalColumns,
+  todayMs,
   onAddCard,
   onOpenCard,
   onRename,
@@ -180,6 +268,7 @@ function KanbanColumn({
   column: BoardColumnDTO;
   index: number;
   totalColumns: number;
+  todayMs: number | null;
   onAddCard: () => void;
   onOpenCard: (cardId: string) => void;
   onRename: () => void;
@@ -204,30 +293,31 @@ function KanbanColumn({
   return (
     <section
       ref={ref}
-      className={`flex max-h-[calc(100vh-10.5rem)] w-[min(84vw,19rem)] shrink-0 flex-col rounded-2xl border bg-[#eef2ec] transition sm:w-80 ${
-        isDragging
-          ? "border-[#8bc34a] opacity-60"
-          : "border-green-950/8"
+      className={`flex max-h-[calc(100vh-12.5rem)] w-[min(84vw,19rem)] shrink-0 flex-col rounded-2xl border bg-white shadow-[0_10px_24px_rgb(15_23_42/0.12)] transition sm:w-80 ${
+        isDragging ? "border-[#8bc34a] opacity-60" : "border-slate-200/70"
       }`}
       aria-labelledby={`column-${column.id}`}
     >
-      <header className="flex items-center gap-2 px-3 py-3.5">
+      <header className="flex items-center gap-1.5 px-3 py-3">
         <button
           ref={handleRef}
           type="button"
-          className="grid size-8 cursor-grab place-items-center rounded-lg text-slate-400 hover:bg-white active:cursor-grabbing focus-visible:outline-3 focus-visible:outline-[#689f38]"
+          className="grid size-8 cursor-grab place-items-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing focus-visible:outline-3 focus-visible:outline-[#689f38]"
           aria-label={`Drag column ${column.name}`}
         >
           <GripVertical size={17} aria-hidden="true" />
         </button>
-        <h2 id={`column-${column.id}`} className="min-w-0 truncate font-bold">
+        <h2
+          id={`column-${column.id}`}
+          className="min-w-0 truncate text-sm font-extrabold uppercase tracking-[0.12em] text-slate-600"
+        >
           {column.name}
         </h2>
-        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-500">
+        <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-extrabold text-slate-500">
           {column.cards.length}
         </span>
-        <details data-no-drag className="group/menu relative ml-auto">
-          <summary className="grid size-8 cursor-pointer list-none place-items-center rounded-lg text-slate-500 hover:bg-white focus-visible:outline-3 focus-visible:outline-[#689f38]">
+        <details data-no-drag className="group/menu relative">
+          <summary className="grid size-8 cursor-pointer list-none place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-3 focus-visible:outline-[#689f38]">
             <MoreHorizontal size={18} aria-label={`Manage ${column.name}`} />
           </summary>
           <div className="absolute right-0 z-30 mt-1 w-44 rounded-xl border border-slate-200 bg-white p-1.5 text-sm shadow-xl">
@@ -270,8 +360,8 @@ function KanbanColumn({
 
       <div
         ref={dropRef}
-        className={`min-h-24 flex-1 space-y-3 overflow-y-auto px-3 pb-3 transition ${
-          isDropTarget ? "rounded-xl bg-[#dfeecf]" : ""
+        className={`kanban-scroll min-h-24 flex-1 space-y-2.5 overflow-y-auto px-3 pb-3 transition ${
+          isDropTarget ? "rounded-xl bg-slate-100" : ""
         }`}
       >
         {column.cards.map((card, cardIndex) => (
@@ -280,6 +370,7 @@ function KanbanColumn({
             card={card}
             columnId={column.id}
             index={cardIndex}
+            todayMs={todayMs}
             onOpen={() => onOpenCard(card.id)}
           />
         ))}
@@ -290,14 +381,14 @@ function KanbanColumn({
         )}
       </div>
 
-      <footer className="border-t border-green-950/8 p-3">
+      <footer className="border-t border-slate-100 px-3 py-1">
         <button
           type="button"
           data-no-drag
           onClick={onAddCard}
-          className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-[#5c8f32] hover:bg-white focus-visible:outline-3 focus-visible:outline-[#689f38]"
+          className="flex w-full items-center justify-center gap-1 rounded-md px-2 py-0.5 text-[9px] uppercase tracking-[0.08em] text-slate-400 hover:bg-slate-50 hover:text-[#5c8f32] focus-visible:outline-3 focus-visible:outline-[#689f38]"
         >
-          <Plus size={16} aria-hidden="true" />
+          <Plus size={11} aria-hidden="true" />
           Add card
         </button>
       </footer>
@@ -337,6 +428,7 @@ export function KanbanBoard({
     null,
   );
   const [isPending, startTransition] = useTransition();
+  const todayMs = useTodayMs();
 
   useEffect(() => {
     if (!toast) return;
@@ -466,36 +558,48 @@ export function KanbanBoard({
     });
   }
 
+  const totalCards = board.columns.reduce(
+    (total, column) => total + column.cards.length,
+    0,
+  );
+
   return (
-    <main className="flex min-h-[calc(100vh-4rem)] flex-col overflow-hidden">
-      <header className="flex flex-col gap-4 border-b border-green-950/8 bg-white px-4 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-6">
-        <div className="min-w-0">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 text-sm font-bold text-[#5c8f32] hover:text-[#456f26]"
-          >
-            <ArrowLeft size={16} aria-hidden="true" />
-            All boards
-          </Link>
-          <h1 className="mt-2 truncate text-2xl font-bold tracking-tight sm:text-3xl">
-            {board.name}
-          </h1>
+    <main className="flex min-h-[calc(100vh-4rem)] flex-col gap-5 overflow-hidden bg-[#8b91a0] px-4 py-5 sm:px-6">
+      <header className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_10px_24px_rgb(15_23_42/0.14)]">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-bold text-[#5c8f32] hover:bg-[#edf6e5] hover:text-[#456f26] focus-visible:outline-3 focus-visible:outline-[#689f38]"
+        >
+          <ArrowLeft size={16} aria-hidden="true" />
+          <span className="hidden sm:inline">All boards</span>
+        </Link>
+
+        <div className="mx-auto min-w-0 text-center">
+          <div className="flex min-w-0 items-center justify-center gap-2.5">
+            <h1 className="truncate text-lg font-extrabold uppercase tracking-[0.08em] text-slate-700 sm:text-xl">
+              {board.name}
+            </h1>
+            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-500">
+              {totalCards}
+            </span>
+          </div>
           {board.description && (
-            <p className="mt-1 max-w-3xl truncate text-sm text-slate-500">
+            <p className="mt-0.5 truncate text-xs text-slate-400">
               {board.description}
             </p>
           )}
         </div>
+
         <button
           type="button"
           onClick={() => {
             setActionResult(null);
             setColumnDialog({ type: "create" });
           }}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#a8c98b] bg-white px-4 py-2.5 text-sm font-bold text-[#4f772d] hover:bg-[#edf6e5]"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#a8c98b] bg-white px-4 py-2.5 text-sm font-bold text-[#4f772d] hover:bg-[#edf6e5] focus-visible:outline-3 focus-visible:outline-[#689f38]"
         >
           <Plus size={17} aria-hidden="true" />
-          Add column
+          <span className="hidden sm:inline">Add column</span>
         </button>
       </header>
 
@@ -525,7 +629,7 @@ export function KanbanBoard({
         onDragEnd={onDragEnd}
       >
         <div
-          className="flex flex-1 gap-4 overflow-x-auto px-4 py-5 sm:px-6"
+          className="kanban-scroll flex flex-1 items-start gap-4 overflow-x-auto pb-2"
           aria-describedby="kanban-drag-instructions"
           aria-busy={isPending}
         >
@@ -535,6 +639,7 @@ export function KanbanBoard({
               column={column}
               index={index}
               totalColumns={board.columns.length}
+              todayMs={todayMs}
               onAddCard={() => setCreateCardColumnId(column.id)}
               onOpenCard={openCard}
               onRename={() => {
@@ -551,7 +656,7 @@ export function KanbanBoard({
             />
           ))}
           {board.columns.length === 0 && (
-            <section className="grid min-h-80 min-w-full place-items-center rounded-2xl border border-dashed border-[#a8c98b] bg-white p-8 text-center">
+            <section className="grid min-h-80 min-w-full place-items-center rounded-2xl border border-dashed border-white/60 bg-white/80 p-8 text-center">
               <div>
                 <CircleAlert
                   className="mx-auto text-[#689f38]"
