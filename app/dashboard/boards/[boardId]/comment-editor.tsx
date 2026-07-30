@@ -58,7 +58,7 @@ function MenuButton({
       aria-pressed={active}
       disabled={disabled}
       onClick={onClick}
-      className={`grid size-8 place-items-center rounded-md transition disabled:cursor-not-allowed disabled:opacity-35 ${
+      className={`grid size-7 place-items-center rounded transition disabled:cursor-not-allowed disabled:opacity-35 ${
         active
           ? "bg-[#dbecc8] text-[#4f772d]"
           : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
@@ -110,7 +110,7 @@ export function CommentEditor({
     editorProps: {
       attributes: {
         class:
-          "tiptap min-h-24 max-h-52 overflow-y-auto px-3 py-2.5 text-sm outline-none",
+          "tiptap thin-scrollbar min-h-32 max-h-52 overflow-y-auto px-3 pb-14 pt-2.5 text-sm outline-none",
         "aria-label": "Comment",
       },
     },
@@ -157,7 +157,7 @@ export function CommentEditor({
     <form onSubmit={submit}>
       <div className="overflow-hidden rounded-xl border border-slate-300 bg-white focus-within:border-[#689f38] focus-within:ring-3 focus-within:ring-[#8bc34a]/20">
         <div
-          className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 bg-slate-50 p-1"
+          className="flex flex-wrap items-center gap-px border-b border-slate-200 bg-slate-50 p-0.5"
           role="toolbar"
           aria-label="Comment formatting"
         >
@@ -201,7 +201,7 @@ export function CommentEditor({
           >
             <Code2 size={15} />
           </MenuButton>
-          <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+          <span className="mx-0.5 h-4 w-px bg-slate-200" aria-hidden="true" />
           <MenuButton
             label="Bullet list"
             active={state?.bulletList}
@@ -226,7 +226,7 @@ export function CommentEditor({
           >
             <Quote size={15} />
           </MenuButton>
-          <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden="true" />
+          <span className="mx-0.5 h-4 w-px bg-slate-200" aria-hidden="true" />
           <MenuButton
             label="Undo"
             disabled={unavailable || !state?.canUndo}
@@ -250,6 +250,19 @@ export function CommentEditor({
             </span>
           )}
           <EditorContent editor={editor} />
+          <button
+            type="submit"
+            aria-label="Add comment"
+            title="Add comment"
+            disabled={
+              unavailable ||
+              state?.empty ||
+              (state?.characters || 0) > MAX_COMMENT_TEXT_LENGTH
+            }
+            className="absolute bottom-3 right-3 grid size-9 place-items-center rounded-lg bg-[#64dd17] text-white shadow-md transition hover:bg-[#58c714] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Send size={16} aria-hidden="true" />
+          </button>
         </div>
       </div>
 
@@ -268,7 +281,7 @@ export function CommentEditor({
           editor={editor}
           options={{ placement: "top", offset: 8 }}
         >
-          <div className="flex gap-0.5 rounded-lg border border-slate-200 bg-white p-1 shadow-xl">
+          <div className="flex gap-px rounded-lg border border-slate-200 bg-white p-0.5 shadow-xl">
             <MenuButton
               label="Bold"
               active={state?.bold}
@@ -297,18 +310,6 @@ export function CommentEditor({
         </BubbleMenu>
       )}
 
-      <button
-        type="submit"
-        disabled={
-          unavailable ||
-          state?.empty ||
-          (state?.characters || 0) > MAX_COMMENT_TEXT_LENGTH
-        }
-        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-800 px-3 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-      >
-        <Send size={15} aria-hidden="true" />
-        Add comment
-      </button>
     </form>
   );
 }

@@ -13,12 +13,16 @@ export function Modal({
   title,
   description,
   children,
+  headerLeading,
+  visuallyHideHeading = false,
   onClose,
   size = "md",
 }: {
   title: string;
   description?: string;
   children: ReactNode;
+  headerLeading?: ReactNode;
+  visuallyHideHeading?: boolean;
   onClose: () => void;
   size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
 }) {
@@ -74,13 +78,17 @@ export function Modal({
         className={`mx-auto w-full ${maxWidth} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl`}
         onClick={(event) => event.stopPropagation()}
       >
-        <header className="flex items-start gap-4 border-b border-slate-100 px-5 py-4 sm:px-6">
-          <div className="min-w-0 flex-1">
-            <h2 id={titleId} className="text-lg font-bold text-slate-900">
+        <header className="flex items-start gap-3 border-b border-slate-100 px-5 py-2.5 sm:px-6">
+          {headerLeading && <div className="shrink-0">{headerLeading}</div>}
+          <div className={visuallyHideHeading ? "sr-only" : "min-w-0 flex-1"}>
+            <h2
+              id={titleId}
+              className={visuallyHideHeading ? undefined : "text-base font-bold text-slate-900"}
+            >
               {title}
             </h2>
             {description && (
-              <p id={descriptionId} className="mt-1 text-sm text-slate-500">
+              <p id={descriptionId} className="mt-0.5 text-xs text-slate-500">
                 {description}
               </p>
             )}
@@ -88,10 +96,12 @@ export function Modal({
           <button
             type="button"
             onClick={close}
-            className="grid size-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-3 focus-visible:outline-[#689f38]"
+            className={`grid size-8 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-3 focus-visible:outline-[#689f38] ${
+              visuallyHideHeading ? "ml-auto" : ""
+            }`}
             aria-label="Close dialog"
           >
-            <X size={18} aria-hidden="true" />
+            <X size={16} aria-hidden="true" />
           </button>
         </header>
         {children}

@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  ArrowRight,
   CalendarDays,
   MessageSquare,
+  Pencil,
   Plus,
   Trash2,
   UserRound,
@@ -63,6 +65,24 @@ function commentDate(value: string): string {
   }).format(new Date(value));
 }
 
+function detailDate(value: string | null): string {
+  if (!value) return "Not set";
+
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeZone: "UTC",
+  }).format(new Date(value));
+}
+
+function detailDateRange(startAt: string | null, dueAt: string | null): string {
+  if (startAt && dueAt) {
+    return `${detailDate(startAt)} – ${detailDate(dueAt)}`;
+  }
+  if (startAt) return `From ${detailDate(startAt)}`;
+  if (dueAt) return `Until ${detailDate(dueAt)}`;
+  return "Not set";
+}
+
 function initials(name: string): string {
   return name
     .split(/\s+/)
@@ -70,6 +90,18 @@ function initials(name: string): string {
     .map((part) => part[0])
     .join("")
     .toUpperCase();
+}
+
+function labelTextColor(color: string): string {
+  const hex = color.replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return "#ffffff";
+
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+
+  return brightness > 160 ? "#1e293b" : "#ffffff";
 }
 
 function ActionError({ result }: { result: KanbanActionResult | null }) {
@@ -117,8 +149,15 @@ export function CardModal({
   const [labelName, setLabelName] = useState("");
   const [labelColor, setLabelColor] = useState("#689f38");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(!editing);
   const [commentResetVersion, setCommentResetVersion] = useState(0);
   const [moveColumnId, setMoveColumnId] = useState(details?.columnId || "");
+  const [startDate, setStartDate] = useState(
+    dateInputValue(details?.startAt || null),
+  );
+  const [dueDate, setDueDate] = useState(
+    dateInputValue(details?.dueAt || null),
+  );
   const [isPending, startTransition] = useTransition();
   const labels = [
     ...initialLabels,
@@ -149,7 +188,11 @@ export function CardModal({
           });
       setResult(actionResult);
       if (actionResult.ok) {
-        onClose();
+        if (details) {
+          setEditingDetails(false);
+        } else {
+          onClose();
+        }
         router.refresh();
       }
     });
@@ -207,9 +250,9 @@ export function CardModal({
     });
   }
 
-  function moveCard() {
-    if (!details || !moveColumnId || moveColumnId === details.columnId) return;
-    const target = columns.find((column) => column.id === moveColumnId);
+  function moveCard(targetColumnId = moveColumnId) {
+    if (!details || !targetColumnId || targetColumnId === details.columnId) return;
+    const target = columns.find((column) => column.id === targetColumnId);
     if (!target) return;
     setResult(null);
     startTransition(async () => {
@@ -220,7 +263,6 @@ export function CardModal({
       });
       setResult(actionResult);
       if (actionResult.ok) {
-        onClose();
         router.refresh();
       }
     });
@@ -233,21 +275,138 @@ export function CardModal({
       title={editing ? details!.title : "Create a card"}
       description={
         editing
-          ? "Update the task details or continue the discussion."
+          ? undefined
           : `Add a task to ${columns.find((column) => column.id === createColumnId)?.name || "this column"}.`
       }
+      visuallyHideHeading={editing}
       onClose={onClose}
       // Creating a card has no comment panel, so full width would stretch a
       // single column of inputs across the whole screen.
-      size={editing ? "xl" : "lg"}
+      size={editing ? "2xl" : "lg"}
     >
       {/*
         The comment panel holds a fixed width rather than a fraction, so any
         extra room the dialog gains goes to the form rather than to empty space
         beside the comment list.
       */}
-      <div className={editing ? "grid lg:grid-cols-[minmax(0,1fr)_26rem]" : ""}>
-        <form onSubmit={submitCard} className="space-y-5 p-5 sm:p-6">
+      <div
+        className={
+          editing
+            ? "grid lg:h-[calc(90vh-3.25rem)] lg:grid-cols-[minmax(0,1fr)_26rem] lg:overflow-hidden"
+            : ""
+        }
+      >
+        <div
+          className={
+            editing ? "thin-scrollbar min-h-0 lg:overflow-y-auto" : ""
+          }
+        >
+          {details && !editingDetails ? (
+            <section className="p-5 sm:p-6">
+              <div className="border-b border-slate-100 pb-5">
+                <div className="flex items-center justify-between gap-4">
+                  <h2 className="min-w-0 truncate text-xl font-bold text-slate-900">
+                    {details.title}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setResult(null);
+                      setDeleteConfirm(false);
+                      setEditingDetails(true);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    <Pencil size={14} aria-hidden="true" />
+                    Edit details
+                  </button>
+                </div>
+                {details.labels.length > 0 ? (
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {details.labels.map((label) => (
+                      <span
+                        key={label.id}
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold"
+                        style={{
+                          backgroundColor: label.color,
+                          color: labelTextColor(label.color),
+                        }}
+                      >
+                        {label.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-400">No labels</p>
+                )}
+              </div>
+
+              <section className="border-b border-slate-100 py-5">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Description
+                </h3>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                  {details.description || "No description provided."}
+                </p>
+              </section>
+
+              <section className="grid gap-5 border-b border-slate-100 py-5 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Date range
+                  </h3>
+                  <p className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                    <CalendarDays size={15} className="text-slate-400" aria-hidden="true" />
+                    {detailDateRange(details.startAt, details.dueAt)}
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Assignee
+                  </h3>
+                  {details.assignee ? (
+                    <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-slate-100 py-1 pl-1 pr-2.5 text-sm font-semibold text-slate-700">
+                      <span className="grid size-6 place-items-center rounded-full bg-[#dbecc8] text-[9px] font-bold text-[#4f772d]">
+                        {initials(details.assignee.name)}
+                      </span>
+                      {details.assignee.name}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-slate-500">Unassigned</p>
+                  )}
+                </div>
+              </section>
+
+              <ActionError result={result} />
+
+              <div className="pt-5">
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm((value) => !value)}
+                  className="inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-semibold text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 size={15} aria-hidden="true" />
+                  Delete card
+                </button>
+                {deleteConfirm && (
+                  <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-4">
+                    <p className="text-sm font-semibold text-red-800">
+                      This permanently deletes the card and all comments.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={deleteCard}
+                      disabled={isPending}
+                      className="mt-3 rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-60"
+                    >
+                      Confirm permanent deletion
+                    </button>
+                  </div>
+                )}
+              </div>
+            </section>
+          ) : (
+          <form onSubmit={submitCard} className="space-y-5 p-5 sm:p-6">
           <label className="block text-sm font-semibold">
             Title
             <input
@@ -270,31 +429,46 @@ export function CardModal({
             />
           </label>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <label className="block text-sm font-semibold">
-              <span className="inline-flex items-center gap-2">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+            <fieldset>
+              <legend className="inline-flex items-center gap-2 text-sm font-semibold">
                 <CalendarDays size={16} aria-hidden="true" />
-                Start date
-              </span>
-              <input
-                name="startAt"
-                type="date"
-                defaultValue={dateInputValue(details?.startAt || null)}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none focus:border-[#689f38] focus:ring-3 focus:ring-[#8bc34a]/20"
-              />
-            </label>
-            <label className="block text-sm font-semibold">
-              <span className="inline-flex items-center gap-2">
-                <CalendarDays size={16} aria-hidden="true" />
-                Due date
-              </span>
-              <input
-                name="dueAt"
-                type="date"
-                defaultValue={dateInputValue(details?.dueAt || null)}
-                className="mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-3 outline-none focus:border-[#689f38] focus:ring-3 focus:ring-[#8bc34a]/20"
-              />
-            </label>
+                Date range
+              </legend>
+              <div className="mt-2 flex items-center rounded-xl border border-slate-300 bg-white focus-within:border-[#689f38] focus-within:ring-3 focus-within:ring-[#8bc34a]/20">
+                <label className="min-w-0 flex-1 px-3 py-1.5">
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    Start
+                  </span>
+                  <input
+                    name="startAt"
+                    type="date"
+                    value={startDate}
+                    max={dueDate || undefined}
+                    onChange={(event) => setStartDate(event.target.value)}
+                    className="mt-0.5 w-full min-w-0 bg-transparent text-sm outline-none"
+                  />
+                </label>
+                <ArrowRight
+                  size={15}
+                  className="shrink-0 text-slate-400"
+                  aria-hidden="true"
+                />
+                <label className="min-w-0 flex-1 px-3 py-1.5">
+                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                    End
+                  </span>
+                  <input
+                    name="dueAt"
+                    type="date"
+                    value={dueDate}
+                    min={startDate || undefined}
+                    onChange={(event) => setDueDate(event.target.value)}
+                    className="mt-0.5 w-full min-w-0 bg-transparent text-sm outline-none"
+                  />
+                </label>
+              </div>
+            </fieldset>
             <label className="block text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
                 <UserRound size={16} aria-hidden="true" />
@@ -372,7 +546,7 @@ export function CardModal({
                   </select>
                   <button
                     type="button"
-                    onClick={moveCard}
+                    onClick={() => moveCard()}
                     disabled={
                       isPending || !moveColumnId || moveColumnId === details!.columnId
                     }
@@ -434,7 +608,15 @@ export function CardModal({
             <div className="ml-auto flex gap-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => {
+                  if (details) {
+                    setResult(null);
+                    setDeleteConfirm(false);
+                    setEditingDetails(false);
+                  } else {
+                    onClose();
+                  }
+                }}
                 className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-600"
               >
                 Cancel
@@ -464,25 +646,27 @@ export function CardModal({
               </button>
             </div>
           )}
-        </form>
+          </form>
+          )}
 
-        {/*
-          Outside the card form on purpose: the checklist UI has forms of its
-          own, and nesting a form inside another is invalid HTML.
-        */}
-        {details && (
-          <div className="border-t border-slate-100 p-5 sm:p-6 lg:col-start-1">
-            <CardChecklists
-              cardId={details.id}
-              groups={details.checklistGroups}
-              users={users}
-              onError={setResult}
-            />
-          </div>
-        )}
+          {/*
+            Outside the card form on purpose: the checklist UI has forms of its
+            own, and nesting a form inside another is invalid HTML.
+          */}
+          {details && (
+            <div className="border-t border-slate-100 p-5 sm:p-6">
+              <CardChecklists
+                cardId={details.id}
+                groups={details.checklistGroups}
+                users={users}
+                onError={setResult}
+              />
+            </div>
+          )}
+        </div>
 
         {editing && (
-          <aside className="border-t border-slate-200 bg-slate-50 p-5 sm:p-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:border-t-0">
+          <aside className="flex min-h-0 flex-col border-t border-slate-200 bg-slate-50 p-5 sm:p-6 lg:border-l lg:border-t-0 lg:overflow-hidden">
             <div className="flex items-center gap-2">
               <MessageSquare size={18} className="text-[#689f38]" aria-hidden="true" />
               <h3 className="font-bold">Comments</h3>
@@ -491,7 +675,7 @@ export function CardModal({
               </span>
             </div>
 
-            <div className="mt-4 max-h-72 space-y-3 overflow-y-auto pr-1">
+            <div className="thin-scrollbar mt-4 max-h-72 space-y-3 overflow-y-auto pr-1 lg:min-h-0 lg:max-h-none lg:flex-1">
               {details!.comments.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500">
                   No comments yet.
@@ -517,7 +701,7 @@ export function CardModal({
             </div>
 
             <div
-              className="mt-4"
+              className="mt-4 shrink-0"
               aria-label={`Add a comment as ${currentUser.name}`}
             >
               <CommentEditor
