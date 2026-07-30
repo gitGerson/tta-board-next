@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function BoardNotFound() {
   return (
-    <main className="grid min-h-[calc(100vh-4rem)] place-items-center px-4">
+    <main className="grid flex-1 place-items-center px-4 pb-24">
       <section className="max-w-md rounded-2xl border border-green-950/10 bg-white p-8 text-center shadow-sm">
         <span className="mx-auto grid size-12 place-items-center rounded-full bg-[#edf6e5] text-[#689f38]">
           <SearchX aria-hidden="true" />

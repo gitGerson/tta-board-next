@@ -9,7 +9,7 @@ export default function DashboardError({
   reset: () => void;
 }) {
   return (
-    <main className="grid min-h-[calc(100vh-4rem)] place-items-center px-4">
+    <main className="grid flex-1 place-items-center px-4 pb-24">
       <section className="max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-sm">
         <span className="mx-auto grid size-12 place-items-center rounded-full bg-red-50 text-red-600">
           <AlertTriangle aria-hidden="true" />

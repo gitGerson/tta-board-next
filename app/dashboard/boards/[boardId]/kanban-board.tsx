@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
@@ -24,7 +23,6 @@ import {
   PointerActivationConstraints,
 } from "@dnd-kit/dom";
 import { move } from "@dnd-kit/helpers";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -313,7 +311,7 @@ function KanbanColumn({
   return (
     <section
       ref={ref}
-      className={`flex max-h-[calc(100vh-12.5rem)] w-[min(84vw,19rem)] shrink-0 flex-col rounded-2xl border bg-white shadow-[0_10px_24px_rgb(15_23_42/0.12)] transition sm:w-80 ${
+      className={`flex max-h-[calc(100vh-12rem)] w-[min(84vw,19rem)] shrink-0 flex-col rounded-2xl border bg-white shadow-[0_10px_24px_rgb(15_23_42/0.12)] transition sm:w-80 ${
         isDragging ? "border-[#8bc34a] opacity-60" : "border-slate-200/70"
       }`}
       aria-labelledby={`column-${column.id}`}
@@ -661,51 +659,8 @@ export function KanbanBoard({
     });
   }
 
-  const totalCards = board.columns.reduce(
-    (total, column) => total + column.cards.length,
-    0,
-  );
-
   return (
-    <main className="flex min-h-[calc(100vh-4rem)] flex-col gap-5 overflow-hidden bg-[#8b91a0] px-4 py-5 sm:px-6">
-      <header className="flex flex-wrap items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_10px_24px_rgb(15_23_42/0.14)]">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 rounded-xl px-2.5 py-2 text-sm font-bold text-[#5c8f32] hover:bg-[#edf6e5] hover:text-[#456f26] focus-visible:outline-3 focus-visible:outline-[#689f38]"
-        >
-          <ArrowLeft size={16} aria-hidden="true" />
-          <span className="hidden sm:inline">All boards</span>
-        </Link>
-
-        <div className="mx-auto min-w-0 text-center">
-          <div className="flex min-w-0 items-center justify-center gap-2.5">
-            <h1 className="truncate text-lg font-extrabold uppercase tracking-[0.08em] text-slate-700 sm:text-xl">
-              {board.name}
-            </h1>
-            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-extrabold text-slate-500">
-              {totalCards}
-            </span>
-          </div>
-          {board.description && (
-            <p className="mt-0.5 truncate text-xs text-slate-400">
-              {board.description}
-            </p>
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            setActionResult(null);
-            setColumnDialog({ type: "create" });
-          }}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#a8c98b] bg-white px-4 py-2.5 text-sm font-bold text-[#4f772d] hover:bg-[#edf6e5] focus-visible:outline-3 focus-visible:outline-[#689f38]"
-        >
-          <Plus size={17} aria-hidden="true" />
-          <span className="hidden sm:inline">Add column</span>
-        </button>
-      </header>
-
+    <>
       <p id="kanban-drag-instructions" className="sr-only">
         Use a drag handle, then press Space or Enter to pick up an item. Use
         arrow keys to move it, Space or Enter to drop it, and Escape to cancel.
@@ -761,7 +716,7 @@ export function KanbanBoard({
             />
           ))}
           {board.columns.length === 0 && (
-            <section className="grid min-h-80 min-w-full place-items-center rounded-2xl border border-dashed border-white/60 bg-white/80 p-8 text-center">
+            <section className="grid min-h-80 flex-1 place-items-center rounded-2xl border border-dashed border-white/60 bg-white/80 p-8 text-center">
               <div>
                 <CircleAlert
                   className="mx-auto text-[#689f38]"
@@ -774,12 +729,26 @@ export function KanbanBoard({
               </div>
             </section>
           )}
+
+          {/* The header no longer carries this action, so it rides at the end
+              of the column strip where the next column would appear. */}
+          <button
+            type="button"
+            onClick={() => {
+              setActionResult(null);
+              setColumnDialog({ type: "create" });
+            }}
+            className="flex w-[min(84vw,19rem)] shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/70 bg-white/20 px-4 py-5 text-sm font-bold text-white transition hover:bg-white/35 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-white sm:w-80"
+          >
+            <Plus size={17} aria-hidden="true" />
+            Add column
+          </button>
         </div>
       </DragDropProvider>
 
       {toast && (
         <div
-          className="fixed bottom-5 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-xl"
+          className="fixed bottom-24 left-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-xl"
           role="status"
           aria-live="polite"
         >
@@ -922,6 +891,6 @@ export function KanbanBoard({
           )}
         </Modal>
       )}
-    </main>
+    </>
   );
 }

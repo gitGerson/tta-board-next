@@ -7,6 +7,7 @@ import {
 } from "@/app/lib/dal/boards";
 import { NotFoundError } from "@/app/lib/dal/errors";
 import { listAssignableUsers } from "@/app/lib/dal/users";
+import { GlobalHeader } from "@/app/dashboard/_components/global-header";
 import { KanbanBoard } from "./kanban-board";
 
 export const dynamic = "force-dynamic";
@@ -57,13 +58,26 @@ export default async function BoardPage({
     ? await getCardDetails(board.id, cardId)
     : null;
 
+  const totalCards = board.columns.reduce(
+    (total, column) => total + column.cards.length,
+    0,
+  );
+
   return (
-    <KanbanBoard
-      initialBoard={board}
-      users={users}
-      currentUser={currentUser}
-      selectedCard={selectedCard}
-      requestedCardMissing={Boolean(cardId && !selectedCard)}
-    />
+    <main className="flex flex-1 flex-col gap-4 overflow-hidden bg-[#8b91a0] px-4 py-4 pb-24 sm:px-6">
+      <GlobalHeader
+        user={currentUser}
+        title={board.name}
+        count={totalCards}
+        subtitle={board.description}
+      />
+      <KanbanBoard
+        initialBoard={board}
+        users={users}
+        currentUser={currentUser}
+        selectedCard={selectedCard}
+        requestedCardMissing={Boolean(cardId && !selectedCard)}
+      />
+    </main>
   );
 }

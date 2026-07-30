@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { requireCurrentUser } from "@/app/lib/dal/auth";
 import { NotFoundError } from "@/app/lib/dal/errors";
 import { db } from "@/app/lib/db/client";
@@ -69,7 +70,8 @@ export type CardDetailsDTO = CardSummaryDTO & {
   comments: CommentDTO[];
 };
 
-export async function listBoards(): Promise<BoardSummaryDTO[]> {
+/** Cached because the dashboard layout and its pages both need the list. */
+export const listBoards = cache(async (): Promise<BoardSummaryDTO[]> => {
   await requireCurrentUser();
 
   const boards = await db.board.findMany({
@@ -95,7 +97,7 @@ export async function listBoards(): Promise<BoardSummaryDTO[]> {
     ),
     updatedAt: board.updatedAt.toISOString(),
   }));
-}
+});
 
 export async function getBoard(boardIdInput: string): Promise<BoardDTO> {
   await requireCurrentUser();
