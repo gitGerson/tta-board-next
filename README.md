@@ -33,6 +33,8 @@ npm run dev
 
 Use `npm run db:migrate -- --name <change>` while developing schema changes. Production releases must run `npm run db:deploy`; do not use `prisma db push` in production.
 
+`npm run dev` and `npm start` both boot `server.ts`, a custom Node server that wraps Next.js so it can also serve realtime board updates over WebSockets. See [DEPLOYMENT.md](DEPLOYMENT.md) for running this on a server.
+
 ## Database boundaries
 
 - `app/lib/db`: server-only Prisma infrastructure.
