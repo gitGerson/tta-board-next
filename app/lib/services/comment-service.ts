@@ -3,6 +3,7 @@ import "server-only";
 import { requireCurrentUser } from "@/app/lib/dal/auth";
 import { NotFoundError } from "@/app/lib/dal/errors";
 import { db } from "@/app/lib/db/client";
+import { serializeCommentDocument } from "@/app/lib/comments/content";
 import {
   createCommentSchema,
   type CreateCommentInput,
@@ -24,7 +25,7 @@ export async function createComment(input: CreateCommentInput) {
     data: {
       cardId: card.id,
       authorId: currentUser.id,
-      body: data.body,
+      body: serializeCommentDocument(data.content),
     },
     select: {
       id: true,

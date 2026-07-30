@@ -3,6 +3,7 @@ import "server-only";
 import { requireCurrentUser } from "@/app/lib/dal/auth";
 import { NotFoundError } from "@/app/lib/dal/errors";
 import { db } from "@/app/lib/db/client";
+import { deserializeCommentDocument } from "@/app/lib/comments/content";
 import { entityIdSchema } from "@/app/lib/kanban/validation";
 
 export async function listComments(cardIdInput: string) {
@@ -33,7 +34,7 @@ export async function listComments(cardIdInput: string) {
 
   return comments.map((comment) => ({
     id: comment.id,
-    body: comment.body,
+    content: deserializeCommentDocument(comment.body),
     createdAt: comment.createdAt.toISOString(),
     updatedAt: comment.updatedAt.toISOString(),
     author: {

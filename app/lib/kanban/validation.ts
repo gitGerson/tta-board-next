@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  normalizeCommentDocument,
+  type CommentDocument,
+} from "@/app/lib/comments/content";
 
 const uuid = z.string().uuid();
 const name = z.string().trim().min(1).max(100);
@@ -63,7 +67,20 @@ export const moveCardSchema = z.object({
 
 export const createCommentSchema = z.object({
   cardId: uuid,
-  body: z.string().trim().min(1).max(5_000),
+  content: z.unknown().transform((value, context): CommentDocument => {
+    const document = normalizeCommentDocument(value);
+
+    if (!document) {
+      context.addIssue({
+        code: "custom",
+        message: "Write a comment before submitting.",
+      });
+
+      return z.NEVER;
+    }
+
+    return document;
+  }),
 });
 
 export const createChecklistGroupSchema = z.object({

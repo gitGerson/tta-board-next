@@ -1,6 +1,10 @@
 import "server-only";
 
 import { cache } from "react";
+import {
+  deserializeCommentDocument,
+  type CommentDocument,
+} from "@/app/lib/comments/content";
 import { requireCurrentUser } from "@/app/lib/dal/auth";
 import { NotFoundError } from "@/app/lib/dal/errors";
 import { db } from "@/app/lib/db/client";
@@ -84,7 +88,7 @@ export type BoardDTO = {
 
 export type CommentDTO = {
   id: string;
-  body: string;
+  content: CommentDocument;
   createdAt: string;
   updatedAt: string;
   author: {
@@ -425,7 +429,7 @@ export async function getCardDetails(
     checklistGroups,
     comments: card.comments.map((comment) => ({
       id: comment.id,
-      body: comment.body,
+      content: deserializeCommentDocument(comment.body),
       createdAt: comment.createdAt.toISOString(),
       updatedAt: comment.updatedAt.toISOString(),
       author: {

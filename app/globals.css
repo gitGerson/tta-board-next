@@ -83,6 +83,44 @@ details > summary::-webkit-details-marker {
   background: #cbd5e1;
 }
 
+.tiptap > * + * {
+  margin-top: 0.5rem;
+}
+
+.tiptap ul,
+.tiptap ol {
+  padding-left: 1.25rem;
+}
+
+.tiptap ul {
+  list-style: disc;
+}
+
+.tiptap ol {
+  list-style: decimal;
+}
+
+.tiptap blockquote {
+  border-left: 3px solid #a8c98b;
+  padding-left: 0.75rem;
+  color: #475569;
+}
+
+.tiptap pre {
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: #0f172a;
+  padding: 0.75rem;
+  color: #f1f5f9;
+}
+
+.tiptap :not(pre) > code {
+  border-radius: 0.25rem;
+  background: #f1f5f9;
+  padding: 0.125rem 0.25rem;
+  font-size: 0.85em;
+}
+
 @keyframes dialog-enter {
   from {
     opacity: 0;

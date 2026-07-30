@@ -4,10 +4,10 @@ import {
   CalendarDays,
   MessageSquare,
   Plus,
-  Send,
   Trash2,
   UserRound,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
   useState,
@@ -28,9 +28,21 @@ import type {
   CardDetailsDTO,
   LabelDTO,
 } from "@/app/lib/dal/boards";
+import type { CommentDocument } from "@/app/lib/comments/content";
 import type { AssignableUserDTO } from "@/app/lib/dal/users";
 import { Modal } from "@/app/dashboard/_components/modal";
 import { CardChecklists } from "./card-checklists";
+import { CommentContent } from "./comment-content";
+
+const CommentEditor = dynamic(
+  () => import("./comment-editor").then((module) => module.CommentEditor),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-36 animate-pulse rounded-xl bg-slate-200" />
+    ),
+  },
+);
 
 function dateInputValue(value: string | null): string {
   return value ? value.slice(0, 10) : "";
@@ -100,7 +112,7 @@ export function CardModal({
   const [labelName, setLabelName] = useState("");
   const [labelColor, setLabelColor] = useState("#689f38");
   const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [commentBody, setCommentBody] = useState("");
+  const [commentResetVersion, setCommentResetVersion] = useState(0);
   const [moveColumnId, setMoveColumnId] = useState(details?.columnId || "");
   const [isPending, startTransition] = useTransition();
   const labels = [
@@ -160,19 +172,18 @@ export function CardModal({
     });
   }
 
-  function submitComment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!details || !commentBody.trim()) return;
+  function submitComment(content: CommentDocument) {
+    if (!details) return;
     setResult(null);
 
     startTransition(async () => {
       const actionResult = await createCommentAction({
         cardId: details.id,
-        body: commentBody,
+        content,
       });
       setResult(actionResult);
       if (actionResult.ok) {
-        setCommentBody("");
+        setCommentResetVersion((version) => version + 1);
         router.refresh();
       }
     });
@@ -494,36 +505,22 @@ export function CardModal({
                         </p>
                       </div>
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-                      {comment.body}
-                    </p>
+                    <CommentContent document={comment.content} />
                   </article>
                 ))
               )}
             </div>
 
-            <form onSubmit={submitComment} className="mt-4">
-              <label className="sr-only" htmlFor="new-comment">
-                Add a comment as {currentUser.name}
-              </label>
-              <textarea
-                id="new-comment"
-                value={commentBody}
-                onChange={(event) => setCommentBody(event.target.value)}
-                rows={3}
-                maxLength={5000}
-                placeholder="Write a comment…"
-                className="w-full resize-y rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#689f38] focus:ring-3 focus:ring-[#8bc34a]/20"
+            <div
+              className="mt-4"
+              aria-label={`Add a comment as ${currentUser.name}`}
+            >
+              <CommentEditor
+                disabled={isPending}
+                resetVersion={commentResetVersion}
+                onSubmit={submitComment}
               />
-              <button
-                type="submit"
-                disabled={isPending || !commentBody.trim()}
-                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-800 px-3 py-2.5 text-sm font-bold text-white disabled:opacity-50"
-              >
-                <Send size={15} aria-hidden="true" />
-                Add comment
-              </button>
-            </form>
+            </div>
           </aside>
         )}
       </div>
