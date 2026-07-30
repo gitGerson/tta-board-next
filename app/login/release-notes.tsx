@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import styles from "./login.module.css";
 
 type Release = {
@@ -5,6 +6,7 @@ type Release = {
   title: string;
   date: string;
   icon: string;
+  /** Backtick-wrapped segments render as inline <code>. */
   items: string[];
   latest?: boolean;
 };
@@ -55,6 +57,10 @@ const releases: Release[] = [
       "Vite-backed Sneat layout assets",
       "RBAC permission catalog moved to config",
       "Auditable trait for model-layer activity logging",
+      "Permission update artisan command",
+      "Fix: user dropdown menu, role count columns & permissions",
+      "Fix: LDAP user creation flow improved",
+      "Fix: product validation moved to model/request rules",
     ],
   },
   {
@@ -65,12 +71,16 @@ const releases: Release[] = [
     items: [
       "Config-driven DataTable components",
       "Reusable Tabulator table engine with inline CRUD demo",
+      "Tabulator engine expanded & backend renamed to `App\\Tables`",
       "Date picker auto-apply option",
       "Select2-enhanced multiple & searchable select",
       "FilePond self-hosted via npm",
-      "Seeded super admin environment configuration",
-      "Search engine indexing disabled",
-      "CI/CD pipeline fixes and development Debugbar support",
+      "Rich editor: StarterKit duplicate extension fix",
+      "Seeded super admin env configuration",
+      "Fix: search engine indexing disabled (robots.txt & noindex headers)",
+      "Fix: CI/CD pipeline",
+      "Debugbar support for development",
+      "Docs consolidated into `docs/` with unified index",
     ],
   },
   {
@@ -80,20 +90,33 @@ const releases: Release[] = [
     icon: "✨",
     latest: true,
     items: [
-      "Dynamic app version configuration",
-      "Dynamic application name across all views",
-      "Dynamic superadmin credentials via environment variables",
+      "Dynamic app version via `config('app.version')`",
+      "Dynamic `APP_NAME` across all views (footer, mobile, notification)",
+      "Dynamic superadmin credentials via env variables",
       "PermissionSyncService cleanup & DatabaseSeeder refactor",
     ],
   },
 ];
+
+function ReleaseItem({ text }: { text: string }) {
+  return (
+    <>
+      {text.split("`").map((segment, index) =>
+        index % 2 === 1 ? (
+          <code key={index}>{segment}</code>
+        ) : (
+          <Fragment key={index}>{segment}</Fragment>
+        ),
+      )}
+    </>
+  );
+}
 
 export function ReleaseNotes() {
   return (
     <details className={styles.releasePanel}>
       <summary className={styles.releaseButton}>
         Version Release Notes &amp; Updates
-        <span aria-hidden="true">⌄</span>
       </summary>
       <div className={styles.releaseList}>
         {releases.map((release, index) => (
@@ -120,7 +143,14 @@ export function ReleaseNotes() {
               </summary>
               <ul>
                 {release.items.map((item) => (
-                  <li key={item}>{item}</li>
+                  <li key={item}>
+                    {release.latest ? (
+                      <>
+                        <span className={styles.newBadge}>✅ NEW</span>{" "}
+                      </>
+                    ) : null}
+                    <ReleaseItem text={item} />
+                  </li>
                 ))}
               </ul>
             </details>

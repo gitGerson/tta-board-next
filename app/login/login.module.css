@@ -1,9 +1,13 @@
 .page {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(360px, 1fr);
+
+  /* Bootstrap col-md-8 / col-md-4 */
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   min-height: 100svh;
-  overflow: hidden;
+
+  /* .container-fluid gutter: --bs-gutter-x (1.625rem) / 2 */
+  padding-inline: 0.8125rem;
 }
 
 .background {
@@ -72,36 +76,44 @@
   align-items: center;
   min-width: 0;
   min-height: 100svh;
-  padding: 3rem;
+
+  /* .p-3 on the column + .p-5 on its inner wrapper */
+  padding: 4rem;
 }
 
+/*
+ * Both panels layer a flat scrim *over* a diagonal tint, matching the way the
+ * reference paints `.left-section::before` (z-index: -1) beneath the element's
+ * own translucent background. Layer order is load-bearing: the first
+ * background-image in the list paints on top.
+ */
 .info {
   color: #fff;
-  background: linear-gradient(135deg, rgb(139 195 74 / 10%), rgb(76 125 42 / 20%)), rgb(45 80 22 / 40%);
+  background:
+    linear-gradient(rgb(45 80 22 / 40%), rgb(45 80 22 / 40%)),
+    linear-gradient(135deg, rgb(139 195 74 / 10%) 0%, rgb(104 159 56 / 15%) 50%, rgb(76 125 42 / 20%) 100%);
   backdrop-filter: blur(5px);
 }
 
 .login {
   color: #212529;
-  background: linear-gradient(135deg, rgb(248 249 250 / 90%), rgb(255 255 255 / 95%), rgb(241 243 245 / 90%));
+  background:
+    linear-gradient(rgb(255 255 255 / 95%), rgb(255 255 255 / 95%)),
+    linear-gradient(135deg, rgb(248 249 250 / 90%) 0%, rgb(255 255 255 / 95%) 50%, rgb(241 243 245 / 90%) 100%);
   backdrop-filter: blur(10px);
 }
 
 .infoInner,
 .loginInner {
   width: 100%;
-  max-width: 760px;
-  margin-inline: auto;
-}
-
-.loginInner {
-  max-width: 430px;
+  min-width: 0;
 }
 
 .info h1 {
   margin: 0 0 1.5rem;
-  font-size: clamp(2rem, 4vw, 2.75rem);
-  line-height: 1.15;
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1.1;
   text-shadow: 2px 2px 4px rgb(0 0 0 / 30%);
   animation: slideLeft 0.8s ease-out;
 }
@@ -115,21 +127,26 @@
   display: none;
 }
 
+/* .btn.btn-primary, italicised by the surrounding .tea-subtitle */
 .releaseButton {
   display: inline-flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 0.4812rem 1.25rem;
+  border: 1px solid transparent;
   border-radius: 0.375rem;
   color: #fff;
-  background: #696cff;
+  background: #309144;
   cursor: pointer;
-  font-weight: 600;
+  font-size: 0.9375rem;
+  font-style: italic;
+  font-weight: 500;
+  line-height: 1.375;
   animation: slideLeft 0.8s ease-out 0.1s both;
+  transition: background 0.2s ease-in-out;
 }
 
 .releaseButton:hover {
-  background: #5f61e6;
+  background: #297c3b;
 }
 
 .releaseButton:focus-visible,
@@ -141,34 +158,26 @@
   outline-offset: 3px;
 }
 
-.releasePanel[open] .releaseButton > span {
-  transform: rotate(180deg);
-}
-
-.releaseButton > span {
-  transition: transform 0.25s ease;
-}
-
 .releaseList {
-  max-height: min(65svh, 680px);
-  margin-top: 1.25rem;
-  padding-right: 0.75rem;
-  overflow-y: auto;
-  scrollbar-color: rgb(255 255 255 / 35%) transparent;
+  margin-top: 1.5rem;
 }
 
 .release {
   display: grid;
   grid-template-columns: 50px minmax(0, 1fr);
   gap: 1rem;
-  padding: 1.25rem 0;
-  border-bottom: 1px solid rgb(255 255 255 / 12%);
+  padding: 1.5rem 0;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
   animation: slideLeft 0.8s ease-out calc(0.2s + var(--delay)) both;
   transition: transform 0.3s ease;
 }
 
+.release:last-child {
+  border-bottom: none;
+}
+
 .release:hover {
-  transform: translateX(10px);
+  transform: translateX(15px);
 }
 
 .releaseIcon {
@@ -187,23 +196,28 @@
   gap: 1rem;
   color: #fff;
   cursor: pointer;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   font-weight: 600;
   list-style: none;
 }
 
 .release small {
-  color: rgb(255 255 255 / 55%);
+  color: rgb(255 255 255 / 50%);
   font-weight: 400;
 }
 
-.latest {
-  color: #ffdc73;
+.latest,
+.newBadge {
+  color: #ffab00;
+}
+
+.newBadge {
+  font-weight: 600;
 }
 
 .chevron {
   flex: none;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   transition: transform 0.25s ease;
 }
 
@@ -212,15 +226,33 @@
 }
 
 .release ul {
-  margin: 0.75rem 0 0;
-  padding-left: 1.2rem;
-  color: rgb(255 255 255 / 72%);
-  line-height: 1.65;
+  margin: 0.5rem 0 0;
+  padding-left: 0;
+  color: rgb(255 255 255 / 70%);
+  line-height: 1.6;
+  list-style: none;
 }
 
+.release li::before {
+  content: "• ";
+}
+
+.release code {
+  color: #e83e8c;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  word-wrap: break-word;
+}
+
+/*
+ * Flex-centred rather than text-align: center — Tailwind's Preflight makes
+ * `img` display: block, so inline centring would leave the logo flush left.
+ */
 .brand {
+  display: flex;
   margin-bottom: 1.5rem;
-  text-align: center;
+  align-items: center;
+  justify-content: center;
 }
 
 .brand img {
@@ -236,27 +268,31 @@
 
 .welcome h2 {
   margin: 0 0 0.5rem;
+  color: #2b2c40;
   font-size: 1.5rem;
+  font-weight: 500;
+  line-height: 1.1;
 }
 
 .welcome p {
   margin: 0;
-  color: #697a8d;
+  color: #a7acb2;
 }
 
 .form {
   display: grid;
-  gap: 1.1rem;
+  row-gap: 1rem;
 }
 
 .field {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.25rem;
 }
 
 .field label {
-  font-size: 0.925rem;
-  font-weight: 500;
+  color: #2b2c40;
+  font-size: 0.8125rem;
+  font-weight: 400;
 }
 
 .field > input,
@@ -270,8 +306,10 @@
 }
 
 .field > input {
-  padding: 0.8rem 0;
+  padding: 0.75rem 0;
   color: #212529;
+  font-size: 0.9375rem;
+  line-height: 1.375;
   outline: none;
 }
 
@@ -294,21 +332,23 @@
 .passwordField input {
   min-width: 0;
   flex: 1;
-  padding: 0.8rem 0;
+  padding: 0.75rem 0;
   border: 0;
   color: #212529;
   background: transparent;
+  font-size: 0.9375rem;
+  line-height: 1.375;
   outline: none;
 }
 
+/* Mirrors .input-group-text: hugs the icon at the input's trailing edge. */
 .passwordToggle {
   display: grid;
-  width: 42px;
-  height: 42px;
   flex: none;
+  padding: 0.75rem 0;
   place-items: center;
   border: 0;
-  color: #697a8d;
+  color: #a7acb2;
   background: transparent;
   cursor: pointer;
 }
@@ -342,34 +382,40 @@
 
 .remember {
   display: inline-flex;
+
+  /* .mb-4 on the wrapper, minus the form's 1rem row-gap */
+  margin-bottom: 0.5rem;
   width: fit-content;
   align-items: center;
-  gap: 0.55rem;
-  color: #697a8d;
+  gap: 0.6em;
+  color: #a7acb2;
   cursor: pointer;
-  font-size: 0.925rem;
+  font-size: 0.9375rem;
 }
 
 .remember input {
-  width: 1rem;
-  height: 1rem;
-  accent-color: #8bc34a;
+  width: 1.2em;
+  height: 1.2em;
+  border-radius: 0.267em;
+  accent-color: #309144;
 }
 
 .submit {
   display: flex;
   width: 100%;
-  min-height: 50px;
   align-items: center;
   justify-content: center;
   gap: 0.7rem;
+  padding: 1rem;
   border: 0;
   border-radius: 0;
   color: #fff;
   background: #8bc34a;
   cursor: pointer;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  line-height: 1.375;
   text-transform: uppercase;
   transition: background 0.25s ease, transform 0.25s ease;
 }
@@ -415,16 +461,18 @@
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 900px) {
+/* Bootstrap md breakpoint: col-md-8 / col-md-4 collapse to col-12. */
+@media (max-width: 767.98px) {
   .page {
     display: block;
-    overflow: visible;
   }
 
   .info,
   .login {
     min-height: auto;
-    padding: 2rem 1.25rem;
+
+    /* .p-3 on the column + .p-3 on its inner wrapper at this breakpoint */
+    padding: 2rem;
   }
 
   .info {
@@ -435,8 +483,8 @@
     min-height: 62svh;
   }
 
-  .releaseList {
-    max-height: none;
+  .info h1 {
+    font-size: 2rem;
   }
 }
 
@@ -473,7 +521,7 @@
   .release,
   .submit,
   .chevron,
-  .releaseButton > span {
+  .releaseButton {
     transition: none;
   }
 }
