@@ -26,10 +26,48 @@ body {
 }
 
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 
 * {
   box-sizing: border-box;
+}
+
+dialog {
+  animation: dialog-enter 160ms ease-out;
+}
+
+dialog::backdrop {
+  animation: backdrop-enter 160ms ease-out;
+}
+
+details > summary::-webkit-details-marker {
+  display: none;
+}
+
+@keyframes dialog-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+@keyframes backdrop-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

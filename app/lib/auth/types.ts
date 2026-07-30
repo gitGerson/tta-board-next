@@ -1,3 +1,10 @@
+export type DirectoryUser = {
+  id: string;
+  username: string;
+  name: string;
+  email: string;
+};
+
 export type SessionUser = {
   id: string;
   username: string;

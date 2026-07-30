@@ -9,7 +9,7 @@ import {
   type SearchOptions,
   type SearchResult,
 } from "ldapts";
-import type { SessionUser } from "./types";
+import type { DirectoryUser } from "./types";
 
 export type LdapClient = {
   bind(dn: string, password?: string): Promise<void>;
@@ -134,7 +134,7 @@ export function mapLdapEntry(
     LdapConfig,
     "userAttribute" | "nameAttribute" | "emailAttribute" | "guidAttribute"
   >,
-): SessionUser {
+): DirectoryUser {
   const mappedUsername = firstString(entry[config.userAttribute]) || username;
   const name =
     firstString(entry[config.nameAttribute]) ||
@@ -155,7 +155,7 @@ export async function authenticateLdap(
     createClient?: LdapClientFactory;
     environment?: NodeJS.ProcessEnv;
   } = {},
-): Promise<SessionUser> {
+): Promise<DirectoryUser> {
   const createClient =
     dependencies.createClient ||
     ((options: ClientOptions): LdapClient => new Client(options));

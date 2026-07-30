@@ -10,7 +10,7 @@ import {
   type LdapClient,
 } from "./ldap";
 
-const environment = {
+const environment: NodeJS.ProcessEnv = {
   NODE_ENV: "test",
   LDAP_URL: "ldaps://ldap.example.com:636",
   LDAP_BIND_DN: "cn=readonly,dc=example,dc=com",

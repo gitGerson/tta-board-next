@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   authenticateLdap: vi.fn(),
+  syncDirectoryUser: vi.fn(),
   createSession: vi.fn(),
   redirect: vi.fn((path: string) => {
     throw new Error(`redirect:${path}`);
@@ -20,6 +21,10 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/app/lib/auth/session", () => ({
   createSession: mocks.createSession,
+}));
+
+vi.mock("@/app/lib/dal/users", () => ({
+  syncDirectoryUser: mocks.syncDirectoryUser,
 }));
 
 vi.mock("@/app/lib/auth/ldap", () => {
@@ -61,6 +66,7 @@ describe("loginAction integration", () => {
   beforeEach(() => {
     resetLoginRateLimiter();
     mocks.authenticateLdap.mockReset();
+    mocks.syncDirectoryUser.mockReset();
     mocks.createSession.mockReset().mockResolvedValue(undefined);
     mocks.redirect.mockClear();
   });
@@ -77,19 +83,25 @@ describe("loginAction integration", () => {
   });
 
   it("creates the selected session and redirects after valid LDAP auth", async () => {
-    const user = {
+    const directoryUser = {
       id: "guid-1",
       username: "jdoe",
       name: "Jane Doe",
       email: "jane@example.com",
     };
-    mocks.authenticateLdap.mockResolvedValue(user);
+    const localUser = {
+      ...directoryUser,
+      id: "10000000-0000-4000-8000-000000000001",
+    };
+    mocks.authenticateLdap.mockResolvedValue(directoryUser);
+    mocks.syncDirectoryUser.mockResolvedValue(localUser);
 
     await expect(
       loginAction(INITIAL_LOGIN_STATE, formData("jdoe", "secret", true)),
     ).rejects.toThrow("redirect:/dashboard");
 
-    expect(mocks.createSession).toHaveBeenCalledWith(user, true);
+    expect(mocks.syncDirectoryUser).toHaveBeenCalledWith(directoryUser);
+    expect(mocks.createSession).toHaveBeenCalledWith(localUser, true);
     expect(mocks.redirect).toHaveBeenCalledWith("/dashboard");
   });
 
@@ -133,5 +145,22 @@ describe("loginAction integration", () => {
     ).resolves.toMatchObject({
       message: "Whoops! LDAP server cannot be reached.",
     });
+  });
+
+  it("does not misreport a database synchronization failure as LDAP downtime", async () => {
+    mocks.authenticateLdap.mockResolvedValue({
+      id: "guid-1",
+      username: "jdoe",
+      name: "Jane Doe",
+      email: "jane@example.com",
+    });
+    mocks.syncDirectoryUser.mockRejectedValue(new Error("database offline"));
+
+    await expect(
+      loginAction(INITIAL_LOGIN_STATE, formData()),
+    ).resolves.toMatchObject({
+      message: "Whoops! Sign-in service is unavailable.",
+    });
+    expect(mocks.createSession).not.toHaveBeenCalled();
   });
 });

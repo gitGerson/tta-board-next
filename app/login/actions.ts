@@ -13,6 +13,7 @@ import {
 } from "@/app/lib/auth/rate-limit";
 import { createSession } from "@/app/lib/auth/session";
 import { loginSchema } from "@/app/lib/auth/validation";
+import { syncDirectoryUser } from "@/app/lib/dal/users";
 import type { LoginState } from "./state";
 
 async function clientAddress(): Promise<string> {
@@ -59,8 +60,9 @@ export async function loginAction(
   }
 
   try {
-    const user = await authenticateLdap(username, password);
-    await createSession(user, remember);
+    const directoryUser = await authenticateLdap(username, password);
+    const localUser = await syncDirectoryUser(directoryUser);
+    await createSession(localUser, remember);
     clearLoginFailures(limiterKey);
   } catch (error) {
     if (
@@ -75,9 +77,16 @@ export async function loginAction(
       };
     }
 
+    if (error instanceof LdapAuthenticationError) {
+      return {
+        status: "error",
+        message: "Whoops! LDAP server cannot be reached.",
+      };
+    }
+
     return {
       status: "error",
-      message: "Whoops! LDAP server cannot be reached.",
+      message: "Whoops! Sign-in service is unavailable.",
     };
   }
 
