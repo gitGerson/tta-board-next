@@ -9,8 +9,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import type { BoardSummaryDTO } from "@/app/lib/dal/boards";
+import { BOARDS_CHANNEL } from "@/app/lib/realtime/protocol";
+import { useRealtime } from "@/app/lib/realtime/use-realtime";
 import {
   createBoardAction,
   deleteBoardAction,
@@ -38,14 +40,28 @@ function ErrorMessage({ result }: { result: KanbanActionResult | null }) {
 
 export function BoardOverview({
   initialBoards,
+  currentUserId,
 }: {
   initialBoards: BoardSummaryDTO[];
+  currentUserId: string;
 }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<BoardSummaryDTO | null>(null);
   const [result, setResult] = useState<KanbanActionResult | null>(null);
   const [isPending, startTransition] = useTransition();
+  const refreshTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(refreshTimer.current), []);
+
+  // Debounced so a teammate filling in a new board does not refresh this list
+  // once per keystroke of activity elsewhere.
+  function onRemoteChange() {
+    window.clearTimeout(refreshTimer.current);
+    refreshTimer.current = window.setTimeout(() => router.refresh(), 300);
+  }
+
+  useRealtime([BOARDS_CHANNEL], currentUserId, onRemoteChange);
 
   function submitCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

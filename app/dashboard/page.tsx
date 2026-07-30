@@ -23,7 +23,7 @@ export default async function DashboardPage() {
       {/* Wrapped so the overview keeps its own internal spacing under the
           header rather than inheriting the flex gap between every section. */}
       <div>
-        <BoardOverview initialBoards={boards} />
+        <BoardOverview initialBoards={boards} currentUserId={user.id} />
       </div>
     </main>
   );

@@ -49,6 +49,8 @@ import type {
   CardSummaryDTO,
 } from "@/app/lib/dal/boards";
 import type { AssignableUserDTO } from "@/app/lib/dal/users";
+import { boardChannel } from "@/app/lib/realtime/protocol";
+import { useRealtime } from "@/app/lib/realtime/use-realtime";
 import {
   applyCardOrder,
   applyColumnOrder,
@@ -451,6 +453,44 @@ export function KanbanBoard({
   const dragSnapshot = useRef<BoardDTO | null>(null);
   /** Live board during a drag; refs avoid reading stale state between frames. */
   const dragBoard = useRef<BoardDTO | null>(null);
+  const remoteRefreshTimer = useRef<number | undefined>(undefined);
+  /**
+   * Read from a timer callback that outlives the render it was scheduled in,
+   * so the blocking conditions have to live in a ref rather than a closure.
+   */
+  const busy = useRef(false);
+
+  useEffect(() => {
+    busy.current = Boolean(
+      isPending || selectedCard || createCardColumnId || columnDialog,
+    );
+  });
+
+  useEffect(
+    () => () => window.clearTimeout(remoteRefreshTimer.current),
+    [],
+  );
+
+  /**
+   * Pulling the board out from under an open card would discard an unsent
+   * comment, and doing it mid-drag would yank the card away from the pointer.
+   * Both cases retry instead of dropping the update.
+   */
+  function applyRemoteChange() {
+    if (dragBoard.current || busy.current) {
+      remoteRefreshTimer.current = window.setTimeout(applyRemoteChange, 500);
+      return;
+    }
+    router.refresh();
+  }
+
+  function onRemoteChange() {
+    window.clearTimeout(remoteRefreshTimer.current);
+    // Coalesces the burst a teammate produces while dragging a card around.
+    remoteRefreshTimer.current = window.setTimeout(applyRemoteChange, 150);
+  }
+
+  useRealtime([boardChannel(board.id)], currentUser.id, onRemoteChange);
 
   useEffect(() => {
     if (!toast) return;
