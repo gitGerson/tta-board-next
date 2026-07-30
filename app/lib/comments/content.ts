@@ -5,6 +5,7 @@ const allowedNodeTypes = new Set([
   "paragraph",
   "text",
   "hardBreak",
+  "mention",
   "bulletList",
   "orderedList",
   "listItem",
@@ -18,6 +19,8 @@ const allowedMarkTypes = new Set([
   "strike",
   "code",
 ]);
+const userIdPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type CommentMark = {
   type: "bold" | "italic" | "underline" | "strike" | "code";
@@ -28,12 +31,14 @@ export type CommentNode = {
     | "paragraph"
     | "text"
     | "hardBreak"
+    | "mention"
     | "bulletList"
     | "orderedList"
     | "listItem"
     | "blockquote"
     | "codeBlock";
   text?: string;
+  attrs?: { id: string; label: string };
   marks?: CommentMark[];
   content?: CommentNode[];
 };
@@ -97,6 +102,28 @@ function normalizeNode(
     return { type: "hardBreak" };
   }
 
+  if (value.type === "mention") {
+    const attrs = isRecord(value.attrs) ? value.attrs : null;
+    if (
+      !attrs ||
+      typeof attrs.id !== "string" ||
+      !userIdPattern.test(attrs.id) ||
+      typeof attrs.label !== "string" ||
+      !attrs.label.trim() ||
+      attrs.label.length > 100
+    ) {
+      return null;
+    }
+
+    counter.text += attrs.label.length + 1;
+    if (counter.text > MAX_COMMENT_TEXT_LENGTH) return null;
+
+    return {
+      type: "mention",
+      attrs: { id: attrs.id, label: attrs.label.trim() },
+    };
+  }
+
   const content = Array.isArray(value.content)
     ? value.content.map((node) => normalizeNode(node, depth + 1, counter))
     : [];
@@ -132,10 +159,25 @@ export function commentText(document: CommentDocument): string {
   function nodeText(node: CommentNode): string {
     if (node.type === "text") return node.text || "";
     if (node.type === "hardBreak") return "\n";
+    if (node.type === "mention") return `@${node.attrs?.label || ""}`;
     return (node.content || []).map(nodeText).join("");
   }
 
   return (document.content || []).map(nodeText).join("\n");
+}
+
+export function mentionedUserIds(document: CommentDocument): string[] {
+  const ids = new Set<string>();
+
+  function visit(node: CommentNode): void {
+    if (node.type === "mention" && node.attrs?.id) {
+      ids.add(node.attrs.id);
+    }
+    node.content?.forEach(visit);
+  }
+
+  document.content?.forEach(visit);
+  return [...ids];
 }
 
 export function serializeCommentDocument(document: CommentDocument): string {

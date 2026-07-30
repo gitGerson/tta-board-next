@@ -29,7 +29,10 @@ import type {
   LabelDTO,
 } from "@/app/lib/dal/boards";
 import type { CommentDocument } from "@/app/lib/comments/content";
-import type { AssignableUserDTO } from "@/app/lib/dal/users";
+import type {
+  AssignableUserDTO,
+  MentionableUserDTO,
+} from "@/app/lib/dal/users";
 import { Modal } from "@/app/dashboard/_components/modal";
 import { CardChecklists } from "./card-checklists";
 import { CommentContent } from "./comment-content";
@@ -90,6 +93,7 @@ export function CardModal({
   columns,
   initialLabels,
   users,
+  mentionableUsers,
   createColumnId,
   details,
   currentUser,
@@ -99,6 +103,7 @@ export function CardModal({
   columns: BoardColumnDTO[];
   initialLabels: LabelDTO[];
   users: AssignableUserDTO[];
+  mentionableUsers: MentionableUserDTO[];
   createColumnId?: string;
   details?: CardDetailsDTO;
   currentUser: { id: string; name: string };
@@ -517,6 +522,7 @@ export function CardModal({
             >
               <CommentEditor
                 disabled={isPending}
+                users={mentionableUsers}
                 resetVersion={commentResetVersion}
                 onSubmit={submitComment}
               />

@@ -49,7 +49,10 @@ import type {
   CardDetailsDTO,
   CardSummaryDTO,
 } from "@/app/lib/dal/boards";
-import type { AssignableUserDTO } from "@/app/lib/dal/users";
+import type {
+  AssignableUserDTO,
+  MentionableUserDTO,
+} from "@/app/lib/dal/users";
 import { boardChannel } from "@/app/lib/realtime/protocol";
 import { useRealtime } from "@/app/lib/realtime/use-realtime";
 import {
@@ -464,12 +467,14 @@ function KanbanColumn({
 export function KanbanBoard({
   initialBoard,
   users,
+  mentionableUsers,
   currentUser,
   selectedCard,
   requestedCardMissing,
 }: {
   initialBoard: BoardDTO;
   users: AssignableUserDTO[];
+  mentionableUsers: MentionableUserDTO[];
   currentUser: CurrentUser;
   selectedCard: CardDetailsDTO | null;
   requestedCardMissing: boolean;
@@ -858,6 +863,7 @@ export function KanbanBoard({
           columns={board.columns}
           initialLabels={board.labels}
           users={users}
+          mentionableUsers={mentionableUsers}
           currentUser={currentUser}
           createColumnId={createCardColumnId}
           onClose={closeCard}
@@ -870,6 +876,7 @@ export function KanbanBoard({
           columns={board.columns}
           initialLabels={board.labels}
           users={users}
+          mentionableUsers={mentionableUsers}
           currentUser={currentUser}
           details={selectedCard}
           onClose={closeCard}

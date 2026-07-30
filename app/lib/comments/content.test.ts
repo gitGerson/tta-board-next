@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   commentText,
   deserializeCommentDocument,
+  mentionedUserIds,
   normalizeCommentDocument,
   serializeCommentDocument,
 } from "./content";
@@ -34,6 +35,32 @@ describe("comment content", () => {
     expect(commentText(deserializeCommentDocument("Legacy comment"))).toBe(
       "Legacy comment",
     );
+  });
+
+  it("preserves mention identity and readable text", () => {
+    const document = normalizeCommentDocument({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "mention",
+              attrs: {
+                id: "10000000-0000-4000-8000-000000000001",
+                label: "Jane Doe",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(document).not.toBeNull();
+    expect(commentText(document!)).toBe("@Jane Doe");
+    expect(mentionedUserIds(document!)).toEqual([
+      "10000000-0000-4000-8000-000000000001",
+    ]);
   });
 
   it("rejects empty, oversized, and unsupported documents", () => {

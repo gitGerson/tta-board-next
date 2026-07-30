@@ -15,21 +15,27 @@ import {
 } from "lucide-react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import Mention from "@tiptap/extension-mention";
 import StarterKit from "@tiptap/starter-kit";
-import { useEffect, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import {
   MAX_COMMENT_TEXT_LENGTH,
   normalizeCommentDocument,
   type CommentDocument,
 } from "@/app/lib/comments/content";
+import type { MentionableUserDTO } from "@/app/lib/dal/users";
+import { createMentionSuggestion } from "./mention-suggestion";
 
-const extensions = [
-  StarterKit.configure({
-    heading: false,
-    horizontalRule: false,
-    link: false,
-  }),
-];
+const starterKit = StarterKit.configure({
+  heading: false,
+  horizontalRule: false,
+  link: false,
+});
 
 function MenuButton({
   label,
@@ -66,12 +72,37 @@ function MenuButton({
 export function CommentEditor({
   disabled,
   resetVersion,
+  users,
   onSubmit,
 }: {
   disabled: boolean;
   resetVersion: number;
+  users: MentionableUserDTO[];
   onSubmit: (document: CommentDocument) => void;
 }) {
+  const extensions = useMemo(
+    () => [
+      starterKit,
+      Mention.configure({
+        HTMLAttributes: {
+          class:
+            "mention rounded-md bg-[#e8f3dc] px-1.5 py-0.5 font-semibold text-[#4f772d]",
+        },
+        suggestion: createMentionSuggestion(users),
+        renderText: ({ node }) => `@${node.attrs.label ?? node.attrs.id}`,
+        renderHTML: ({ options, node }) => [
+          "span",
+          {
+            ...options.HTMLAttributes,
+            "data-type": "mention",
+            "data-id": node.attrs.id,
+          },
+          `@${node.attrs.label ?? node.attrs.id}`,
+        ],
+      }),
+    ],
+    [users],
+  );
   const editor = useEditor({
     extensions,
     content: { type: "doc", content: [{ type: "paragraph" }] },

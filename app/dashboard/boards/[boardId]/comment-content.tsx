@@ -43,6 +43,15 @@ function renderNode(node: CommentNode): ReactNode {
       return applyMarks(node.text || "", node.marks);
     case "hardBreak":
       return <br />;
+    case "mention":
+      return (
+        <span
+          className="inline-flex rounded-md bg-[#e8f3dc] px-1.5 py-0.5 font-semibold text-[#4f772d]"
+          data-user-id={node.attrs?.id}
+        >
+          @{node.attrs?.label}
+        </span>
+      );
     case "paragraph":
       return <p className="min-h-5">{renderChildren(node)}</p>;
     case "bulletList":

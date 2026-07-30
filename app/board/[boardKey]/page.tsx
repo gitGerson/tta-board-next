@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import { requireCurrentUser } from "@/app/lib/dal/auth";
 import { getBoardByRouteKey, getCardDetails } from "@/app/lib/dal/boards";
 import { NotFoundError } from "@/app/lib/dal/errors";
-import { listAssignableUsers } from "@/app/lib/dal/users";
+import {
+  listAssignableUsers,
+  listMentionableUsers,
+} from "@/app/lib/dal/users";
 import { GlobalHeader } from "@/app/dashboard/_components/global-header";
 import { KanbanBoard } from "@/app/dashboard/boards/[boardId]/kanban-board";
 
@@ -24,13 +27,14 @@ export async function generateMetadata({
 
 async function loadBoardPageData(boardKey: string) {
   try {
-    const [board, users, currentUser] = await Promise.all([
+    const [board, users, mentionableUsers, currentUser] = await Promise.all([
       getBoardByRouteKey(boardKey),
       listAssignableUsers(),
+      listMentionableUsers(),
       requireCurrentUser(),
     ]);
 
-    return { board, users, currentUser };
+    return { board, users, mentionableUsers, currentUser };
   } catch (error) {
     if (error instanceof NotFoundError) {
       notFound();
@@ -49,7 +53,8 @@ export default async function BoardPage({
 }) {
   const { boardKey } = await params;
   const { card: cardId } = await searchParams;
-  const { board, users, currentUser } = await loadBoardPageData(boardKey);
+  const { board, users, mentionableUsers, currentUser } =
+    await loadBoardPageData(boardKey);
 
   const selectedCard = cardId
     ? await getCardDetails(board.id, cardId)
@@ -71,6 +76,7 @@ export default async function BoardPage({
       <KanbanBoard
         initialBoard={board}
         users={users}
+        mentionableUsers={mentionableUsers}
         currentUser={currentUser}
         selectedCard={selectedCard}
         requestedCardMissing={Boolean(cardId && !selectedCard)}

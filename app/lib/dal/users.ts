@@ -28,18 +28,18 @@ export async function syncDirectoryUser(
     },
     select: {
       id: true,
-      username: true,
-      displayName: true,
-      email: true,
-    },
-  });
+            username: true,
+            displayName: true,
+            email: true,
+        },
+    });
 
   return {
     id: user.id,
-    username: user.username,
-    name: user.displayName,
-    email: user.email,
-  };
+        username: user.username,
+        name: user.displayName,
+        email: user.email,
+    };
 }
 
 export type AssignableUserDTO = {
@@ -49,16 +49,40 @@ export type AssignableUserDTO = {
   email: string;
 };
 
+export type MentionableUserDTO = Pick<
+  AssignableUserDTO,
+  "id" | "username" | "name"
+>;
+
 export async function listAssignableUsers(): Promise<AssignableUserDTO[]> {
   await requireCurrentUser();
   const users = await db.user.findMany({
     where: { isActive: true },
     orderBy: [{ displayName: "asc" }, { username: "asc" }],
     select: {
+            id: true,
+            username: true,
+            displayName: true,
+            email: true,
+        },
+  });
+
+  return users.map((user) => ({
+        id: user.id,
+        username: user.username,
+        name: user.displayName,
+        email: user.email,
+    }));
+}
+
+export async function listMentionableUsers(): Promise<MentionableUserDTO[]> {
+  await requireCurrentUser();
+  const users = await db.user.findMany({
+    orderBy: [{ displayName: "asc" }, { username: "asc" }],
+    select: {
       id: true,
       username: true,
       displayName: true,
-      email: true,
     },
   });
 
@@ -66,6 +90,5 @@ export async function listAssignableUsers(): Promise<AssignableUserDTO[]> {
     id: user.id,
     username: user.username,
     name: user.displayName,
-    email: user.email,
   }));
 }
