@@ -90,5 +90,5 @@ export async function loginAction(
     };
   }
 
-  redirect("/dashboard");
+  redirect("/");
 }

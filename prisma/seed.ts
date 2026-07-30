@@ -44,11 +44,13 @@ async function seed(): Promise<void> {
     await tx.board.upsert({
       where: { id: ids.board },
       update: {
+        routeKey: "2bbMVYpomAVjUHgE",
         name: "Product Board",
         description: "Development seed board",
       },
       create: {
         id: ids.board,
+        routeKey: "2bbMVYpomAVjUHgE",
         name: "Product Board",
         description: "Development seed board",
         createdById: ids.user,

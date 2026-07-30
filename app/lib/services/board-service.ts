@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomBytes } from "node:crypto";
 import { requireCurrentUser } from "@/app/lib/dal/auth";
 import { ConflictError, NotFoundError } from "@/app/lib/dal/errors";
 import { db } from "@/app/lib/db/client";
@@ -20,6 +21,10 @@ import {
 
 const DEFAULT_COLUMNS = ["To Do", "In Progress", "Review", "Done"] as const;
 
+function createRouteKey(): string {
+  return randomBytes(12).toString("base64url");
+}
+
 export async function createBoard(input: CreateBoardInput) {
   const currentUser = await requireCurrentUser();
   const data = createBoardSchema.parse(input);
@@ -27,11 +32,12 @@ export async function createBoard(input: CreateBoardInput) {
   return db.$transaction(async (tx) => {
     const board = await tx.board.create({
       data: {
+        routeKey: createRouteKey(),
         name: data.name,
         description: data.description,
         createdById: currentUser.id,
       },
-      select: { id: true, name: true },
+      select: { id: true, routeKey: true, name: true },
     });
 
     await tx.boardColumn.createMany({

@@ -58,7 +58,7 @@ import {
 } from "@/app/lib/realtime/notify";
 
 export type KanbanActionResult =
-  | { ok: true; id?: string }
+  | { ok: true; id?: string; routeKey?: string }
   | { ok: false; message: string; fieldErrors?: Record<string, string[]> };
 
 type Notification = {
@@ -74,14 +74,16 @@ type Notification = {
 
 async function runAction(
   notification: Notification,
-  operation: () => Promise<{ id: string } | void>,
+  operation: () => Promise<{ id: string; routeKey?: string } | void>,
 ): Promise<KanbanActionResult> {
   try {
     const boardId = await resolveBoardId(notification.scope);
     const result = await operation();
-    revalidatePath("/dashboard", "layout");
+    revalidatePath("/", "layout");
     await notifyChanged(boardId, notification.boardList ?? false);
-    return result ? { ok: true, id: result.id } : { ok: true };
+    return result
+      ? { ok: true, id: result.id, routeKey: result.routeKey }
+      : { ok: true };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return {

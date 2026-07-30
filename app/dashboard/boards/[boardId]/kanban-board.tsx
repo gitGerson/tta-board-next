@@ -41,6 +41,7 @@ import {
   type KanbanActionResult,
 } from "@/app/dashboard/boards/actions";
 import { Modal } from "@/app/dashboard/_components/modal";
+import { boardPath } from "@/app/lib/kanban/board-route";
 import type { CurrentUser } from "@/app/lib/dal/auth";
 import type {
   BoardColumnDTO,
@@ -554,7 +555,7 @@ export function KanbanBoard({
   function openCard(cardId: string) {
     // Dropping a card fires a click on it; only a genuine tap should open it.
     if (Date.now() - lastDragEnd.current < 250) return;
-    router.push(`/dashboard/boards/${board.id}?card=${cardId}`, {
+    router.push(`${boardPath(board.routeKey)}?card=${cardId}`, {
       scroll: false,
     });
   }
@@ -562,7 +563,7 @@ export function KanbanBoard({
   function closeCard() {
     setCreateCardColumnId(null);
     if (selectedCard || requestedCardMissing) {
-      router.replace(`/dashboard/boards/${board.id}`, { scroll: false });
+      router.replace(boardPath(board.routeKey), { scroll: false });
     }
   }
 

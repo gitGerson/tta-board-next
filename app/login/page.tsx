@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
   if (await getSession()) {
-    redirect("/dashboard");
+    redirect("/");
   }
 
   const appName = process.env.APP_NAME || "Tong Tji Starter Kit";

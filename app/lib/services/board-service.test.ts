@@ -42,6 +42,7 @@ describe("board service", () => {
     );
     mocks.boardCreate.mockResolvedValue({
       id: "20000000-0000-4000-8000-000000000001",
+      routeKey: "2bbMVYpomAVjUHgE",
       name: "Product",
     });
     mocks.columnCreateMany.mockResolvedValue({ count: 4 });
@@ -50,6 +51,12 @@ describe("board service", () => {
   it("creates a board and four default columns in one transaction", async () => {
     await createBoard({ name: " Product ", description: null });
 
+    expect(mocks.boardCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        routeKey: expect.stringMatching(/^[A-Za-z0-9_-]{16}$/),
+      }),
+      select: { id: true, routeKey: true, name: true },
+    });
     expect(mocks.columnCreateMany).toHaveBeenCalledWith({
       data: [
         expect.objectContaining({ name: "To Do", position: 0 }),

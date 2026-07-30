@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import type { BoardSummaryDTO } from "@/app/lib/dal/boards";
+import { boardPath } from "@/app/lib/kanban/board-route";
 import { BOARDS_CHANNEL } from "@/app/lib/realtime/protocol";
 import { useRealtime } from "@/app/lib/realtime/use-realtime";
 import {
@@ -74,9 +75,9 @@ export function BoardOverview({
         description: String(form.get("description") || "") || null,
       });
       setResult(actionResult);
-      if (actionResult.ok && actionResult.id) {
+      if (actionResult.ok && actionResult.routeKey) {
         setCreateOpen(false);
-        router.push(`/dashboard/boards/${actionResult.id}`);
+        router.push(boardPath(actionResult.routeKey));
       }
     });
   }
@@ -194,7 +195,7 @@ export function BoardOverview({
                   </div>
                 </dl>
                 <Link
-                  href={`/dashboard/boards/${board.id}`}
+                  href={boardPath(board.routeKey)}
                   className="mt-5 inline-flex items-center gap-2 self-start text-sm font-bold text-[#5c8f32] after:absolute after:inset-0 focus-visible:rounded focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#689f38]"
                 >
                   Open board

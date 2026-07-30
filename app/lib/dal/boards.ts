@@ -4,10 +4,12 @@ import { cache } from "react";
 import { requireCurrentUser } from "@/app/lib/dal/auth";
 import { NotFoundError } from "@/app/lib/dal/errors";
 import { db } from "@/app/lib/db/client";
+import { isBoardKey } from "@/app/lib/kanban/board-route";
 import { entityIdSchema } from "@/app/lib/kanban/validation";
 
 export type BoardSummaryDTO = {
   id: string;
+  routeKey: string;
   name: string;
   description: string | null;
   columnCount: number;
@@ -72,6 +74,7 @@ export type BoardColumnDTO = {
 
 export type BoardDTO = {
   id: string;
+  routeKey: string;
   name: string;
   description: string | null;
   updatedAt: string;
@@ -105,6 +108,7 @@ export const listBoards = cache(async (): Promise<BoardSummaryDTO[]> => {
     orderBy: [{ updatedAt: "desc" }, { name: "asc" }],
     select: {
       id: true,
+      routeKey: true,
       name: true,
       description: true,
       updatedAt: true,
@@ -115,6 +119,7 @@ export const listBoards = cache(async (): Promise<BoardSummaryDTO[]> => {
 
   return boards.map((board) => ({
     id: board.id,
+    routeKey: board.routeKey,
     name: board.name,
     description: board.description,
     columnCount: board._count.columns,
@@ -194,10 +199,30 @@ async function checklistProgressByCard(
 export async function getBoard(boardIdInput: string): Promise<BoardDTO> {
   await requireCurrentUser();
   const boardId = entityIdSchema.parse(boardIdInput);
+
+  return loadBoard({ id: boardId });
+}
+
+export async function getBoardByRouteKey(
+  routeKey: string,
+): Promise<BoardDTO> {
+  await requireCurrentUser();
+
+  if (!isBoardKey(routeKey)) {
+    throw new NotFoundError("Board");
+  }
+
+  return loadBoard({ routeKey });
+}
+
+async function loadBoard(
+  where: { id: string } | { routeKey: string },
+): Promise<BoardDTO> {
   const board = await db.board.findUnique({
-    where: { id: boardId },
+    where,
     select: {
       id: true,
+      routeKey: true,
       name: true,
       description: true,
       updatedAt: true,
@@ -244,6 +269,7 @@ export async function getBoard(boardIdInput: string): Promise<BoardDTO> {
 
   return {
     id: board.id,
+    routeKey: board.routeKey,
     name: board.name,
     description: board.description,
     updatedAt: board.updatedAt.toISOString(),

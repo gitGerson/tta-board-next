@@ -13,7 +13,7 @@ export default function BoardNotFound() {
           It may have been permanently deleted or the link is incorrect.
         </p>
         <Link
-          href="/dashboard"
+          href="/"
           className="mt-6 inline-flex items-center gap-2 rounded-xl bg-[#689f38] px-4 py-2.5 text-sm font-bold text-white"
         >
           <ArrowLeft size={16} aria-hidden="true" />

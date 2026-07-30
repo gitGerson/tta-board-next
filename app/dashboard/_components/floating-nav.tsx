@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { BoardSummaryDTO } from "@/app/lib/dal/boards";
+import { boardPath } from "@/app/lib/kanban/board-route";
 
 type Tab = "all" | "pinned";
 
@@ -134,7 +135,7 @@ export function FloatingNav({ boards }: { boards: BoardSummaryDTO[] }) {
             ) : (
               <ul className="kanban-scroll max-h-72 overflow-y-auto p-1.5">
                 {visible.map((board) => {
-                  const href = `/dashboard/boards/${board.id}`;
+                  const href = boardPath(board.routeKey);
                   const isPinned = pinned.includes(board.id);
                   return (
                     <li key={board.id} className="flex items-center gap-1">

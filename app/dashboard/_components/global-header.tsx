@@ -37,7 +37,7 @@ export function GlobalHeader({
     <header className="flex shrink-0 items-center gap-2 rounded-2xl bg-white px-3 py-2.5 shadow-[0_10px_24px_rgb(15_23_42/0.14)] sm:px-4">
       <div className="flex flex-1 items-center">
         <Link
-          href="/dashboard"
+          href="/"
           className="rounded-xl focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#689f38]"
         >
           <Image

@@ -98,11 +98,11 @@ describe("loginAction integration", () => {
 
     await expect(
       loginAction(INITIAL_LOGIN_STATE, formData("jdoe", "secret", true)),
-    ).rejects.toThrow("redirect:/dashboard");
+    ).rejects.toThrow("redirect:/");
 
     expect(mocks.syncDirectoryUser).toHaveBeenCalledWith(directoryUser);
     expect(mocks.createSession).toHaveBeenCalledWith(localUser, true);
-    expect(mocks.redirect).toHaveBeenCalledWith("/dashboard");
+    expect(mocks.redirect).toHaveBeenCalledWith("/");
   });
 
   it("returns a generic invalid-credentials message", async () => {

@@ -27,6 +27,7 @@ function card(id: string, position: number): CardSummaryDTO {
 function board(): BoardDTO {
   return {
     id: "board",
+    routeKey: "2bbMVYpomAVjUHgE",
     name: "Delivery",
     description: null,
     updatedAt: "2026-01-01T00:00:00.000Z",
