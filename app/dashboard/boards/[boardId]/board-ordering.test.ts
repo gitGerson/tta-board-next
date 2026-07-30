@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { BoardDTO, CardSummaryDTO } from "@/app/lib/dal/boards";
-import { repositionCard, repositionColumns } from "./board-ordering";
+import {
+  applyCardOrder,
+  applyColumnOrder,
+  cardOrder,
+  repositionCard,
+  repositionColumns,
+} from "./board-ordering";
 
 function card(id: string, position: number): CardSummaryDTO {
   return {
@@ -79,5 +85,52 @@ describe("board ordering", () => {
 
     expect(repositionCard(source, "a", "missing", 0)).toBe(source);
     expect(repositionColumns(source, "missing", 0)).toBe(source);
+  });
+
+  it("reads card ids grouped by column", () => {
+    expect(cardOrder(board())).toEqual({
+      todo: ["a", "b", "c"],
+      done: ["d"],
+    });
+  });
+
+  it("applies a card order across columns and renumbers positions", () => {
+    const source = board();
+    const result = applyCardOrder(source, {
+      todo: ["c", "a"],
+      done: ["b", "d"],
+    });
+
+    expect(source.columns[0].cards.map((item) => item.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+    expect(result.columns[0].cards.map((item) => item.id)).toEqual(["c", "a"]);
+    expect(result.columns[1].cards.map((item) => item.id)).toEqual(["b", "d"]);
+    expect(result.columns[1].cards.map((item) => item.position)).toEqual([0, 1]);
+  });
+
+  it("ignores a card order that would drop or duplicate cards", () => {
+    const source = board();
+
+    expect(applyCardOrder(source, { todo: ["a", "b"], done: ["d"] })).toBe(
+      source,
+    );
+    expect(applyCardOrder(source, { todo: ["a", "b", "c", "d"] })).toBe(source);
+  });
+
+  it("applies a column order and renumbers positions", () => {
+    const result = applyColumnOrder(board(), ["done", "todo"]);
+
+    expect(result.columns.map((column) => column.id)).toEqual(["done", "todo"]);
+    expect(result.columns.map((column) => column.position)).toEqual([0, 1]);
+  });
+
+  it("ignores an incomplete column order", () => {
+    const source = board();
+
+    expect(applyColumnOrder(source, ["done"])).toBe(source);
+    expect(applyColumnOrder(source, ["done", "missing"])).toBe(source);
   });
 });

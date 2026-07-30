@@ -17,15 +17,18 @@ import {
   PointerSensor,
   useDroppable,
   type DragEndEvent,
+  type DragOverEvent,
 } from "@dnd-kit/react";
-import { useSortable, isSortable } from "@dnd-kit/react/sortable";
+import { useSortable } from "@dnd-kit/react/sortable";
 import {
   PointerActivationConstraints,
 } from "@dnd-kit/dom";
+import { move } from "@dnd-kit/helpers";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
   useTransition,
@@ -48,7 +51,13 @@ import type {
   CardSummaryDTO,
 } from "@/app/lib/dal/boards";
 import type { AssignableUserDTO } from "@/app/lib/dal/users";
-import { repositionCard, repositionColumns } from "./board-ordering";
+import {
+  applyCardOrder,
+  applyColumnOrder,
+  cardOrder,
+  repositionCard,
+  repositionColumns,
+} from "./board-ordering";
 import { CardModal } from "./card-modal";
 
 type DragData =
@@ -130,6 +139,17 @@ function dueStatus(
     return { label: "Today", tone: "bg-amber-100 text-amber-700" };
   if (days <= 3)
     return { label: `H-${days}`, tone: "bg-sky-100 text-sky-700" };
+  return null;
+}
+
+function locateCard(
+  board: BoardDTO,
+  cardId: string,
+): { columnId: string; index: number } | null {
+  for (const column of board.columns) {
+    const index = column.cards.findIndex((card) => card.id === cardId);
+    if (index >= 0) return { columnId: column.id, index };
+  }
   return null;
 }
 
@@ -429,6 +449,10 @@ export function KanbanBoard({
   );
   const [isPending, startTransition] = useTransition();
   const todayMs = useTodayMs();
+  /** Board as it looked when the drag started, for cancel and failure rollback. */
+  const dragSnapshot = useRef<BoardDTO | null>(null);
+  /** Live board during a drag; refs avoid reading stale state between frames. */
+  const dragBoard = useRef<BoardDTO | null>(null);
 
   useEffect(() => {
     if (!toast) return;
@@ -468,47 +492,126 @@ export function KanbanBoard({
     });
   }
 
-  function onDragEnd(event: DragEndEvent) {
-    if (event.canceled) return;
+  /**
+   * The board follows the pointer while dragging, so the drop lands on state
+   * that already matches what the user sees. Reordering only at drop time made
+   * the card spring back to its origin before React caught up.
+   */
+  function reorderFromEvent(
+    current: BoardDTO,
+    event: DragOverEvent | DragEndEvent,
+  ): BoardDTO {
     const { source, target } = event.operation;
-    if (!source || !target) return;
+    if (!source || !target) return current;
     const sourceData = source.data as DragData | undefined;
     const targetData = target.data as DragData | undefined;
 
     if (sourceData?.kind === "column") {
-      const targetIndex = isSortable(target)
-        ? target.index
-        : board.columns.findIndex(
-            (column) => column.id === targetData?.columnId,
-          );
-      if (targetIndex >= 0) {
-        persistColumnMove(sourceData.columnId, targetIndex);
+      const columnIds = current.columns.map((column) => column.id);
+      const reordered = move(columnIds, event);
+      return reordered === columnIds
+        ? current
+        : applyColumnOrder(current, reordered);
+    }
+
+    if (sourceData?.kind !== "card") return current;
+
+    // Hovering a column's empty space rather than one of its cards: dnd-kit
+    // cannot map that droppable onto the card lists, so append by hand.
+    if (targetData?.kind === "column-drop") {
+      const targetColumn = current.columns.find(
+        (column) => column.id === targetData.columnId,
+      );
+      if (
+        !targetColumn ||
+        targetColumn.cards.some((card) => card.id === sourceData.cardId)
+      ) {
+        return current;
       }
+      return repositionCard(
+        current,
+        sourceData.cardId,
+        targetData.columnId,
+        targetColumn.cards.length,
+      );
+    }
+
+    const order = cardOrder(current);
+    const reordered = move(order, event);
+    return reordered === order ? current : applyCardOrder(current, reordered);
+  }
+
+  function onDragStart() {
+    dragSnapshot.current = board;
+    dragBoard.current = board;
+  }
+
+  function onDragOver(event: DragOverEvent) {
+    const current = dragBoard.current;
+    if (!current) return;
+    const next = reorderFromEvent(current, event);
+    if (next === current) return;
+    dragBoard.current = next;
+    setBoard(next);
+  }
+
+  function onDragEnd(event: DragEndEvent) {
+    const snapshot = dragSnapshot.current;
+    const current = dragBoard.current;
+    dragSnapshot.current = null;
+    dragBoard.current = null;
+    if (!snapshot || !current) return;
+
+    if (event.canceled) {
+      if (current !== snapshot) setBoard(snapshot);
+      return;
+    }
+
+    const next = reorderFromEvent(current, event);
+    if (next !== current) setBoard(next);
+
+    const sourceData = event.operation.source?.data as DragData | undefined;
+    if (sourceData?.kind === "column") {
+      const targetIndex = next.columns.findIndex(
+        (column) => column.id === sourceData.columnId,
+      );
+      const originIndex = snapshot.columns.findIndex(
+        (column) => column.id === sourceData.columnId,
+      );
+      if (targetIndex < 0 || targetIndex === originIndex) return;
+
+      startTransition(async () => {
+        const result = await moveColumnAction({
+          columnId: sourceData.columnId,
+          targetIndex,
+        });
+        if (!result.ok) {
+          setBoard(snapshot);
+          setToast(result.message);
+        } else {
+          router.refresh();
+        }
+      });
       return;
     }
 
     if (sourceData?.kind !== "card") return;
-    const targetColumnId =
-      targetData?.columnId ||
-      (isSortable(target) ? String(target.group || "") : "");
-    if (!targetColumnId) return;
-    const targetColumn = board.columns.find(
-      (column) => column.id === targetColumnId,
-    );
-    if (!targetColumn) return;
-    const targetIndex = isSortable(target)
-      ? target.index
-      : targetColumn.cards.length;
-    const snapshot = board;
-    setBoard(
-      repositionCard(board, sourceData.cardId, targetColumnId, targetIndex),
-    );
+    const placement = locateCard(next, sourceData.cardId);
+    const origin = locateCard(snapshot, sourceData.cardId);
+    if (!placement) return;
+    if (
+      origin &&
+      origin.columnId === placement.columnId &&
+      origin.index === placement.index
+    ) {
+      return;
+    }
 
     startTransition(async () => {
       const result = await moveCardAction({
         cardId: sourceData.cardId,
-        targetColumnId,
-        targetIndex,
+        targetColumnId: placement.columnId,
+        targetIndex: placement.index,
       });
       if (!result.ok) {
         setBoard(snapshot);
@@ -626,6 +729,8 @@ export function KanbanBoard({
               event.target.closest("[data-no-drag]") !== null,
           }),
         ]}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
         onDragEnd={onDragEnd}
       >
         <div

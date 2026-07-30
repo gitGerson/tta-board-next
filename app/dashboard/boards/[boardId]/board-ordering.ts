@@ -3,6 +3,57 @@ import type {
   CardSummaryDTO,
 } from "@/app/lib/dal/boards";
 
+/** Card ids per column, the flat shape dnd-kit's `move` helper understands. */
+export type CardOrder = Record<string, string[]>;
+
+export function cardOrder(board: BoardDTO): CardOrder {
+  return Object.fromEntries(
+    board.columns.map((column) => [
+      column.id,
+      column.cards.map((card) => card.id),
+    ]),
+  );
+}
+
+/** Rebuild the board so its cards follow `order`, dropping unknown ids. */
+export function applyCardOrder(board: BoardDTO, order: CardOrder): BoardDTO {
+  const cards = new Map<string, CardSummaryDTO>();
+  for (const column of board.columns) {
+    for (const card of column.cards) cards.set(card.id, card);
+  }
+
+  const columns = board.columns.map((column) => {
+    const ids = order[column.id];
+    if (!ids) return column;
+
+    return {
+      ...column,
+      cards: ids
+        .map((id) => cards.get(id))
+        .filter((card): card is CardSummaryDTO => card !== undefined)
+        .map((card, position) => ({ ...card, position })),
+    };
+  });
+
+  const moved = columns.reduce((total, column) => total + column.cards.length, 0);
+  return moved === cards.size ? { ...board, columns } : board;
+}
+
+/** Rebuild the board so its columns follow `order`, ignoring incomplete input. */
+export function applyColumnOrder(board: BoardDTO, order: string[]): BoardDTO {
+  const byId = new Map(board.columns.map((column) => [column.id, column]));
+  const columns = order
+    .map((id) => byId.get(id))
+    .filter((column): column is BoardDTO["columns"][number] => column !== undefined);
+
+  if (columns.length !== board.columns.length) return board;
+
+  return {
+    ...board,
+    columns: columns.map((column, position) => ({ ...column, position })),
+  };
+}
+
 export function repositionColumns(
   board: BoardDTO,
   sourceId: string,
