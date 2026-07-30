@@ -20,7 +20,7 @@ export function Modal({
   description?: string;
   children: ReactNode;
   onClose: () => void;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -52,6 +52,10 @@ export function Modal({
     sm: "max-w-md",
     md: "max-w-xl",
     lg: "max-w-3xl",
+    xl: "max-w-5xl",
+    "2xl": "max-w-6xl",
+    // Fills the dialog, which already leaves a 1rem gutter on each side.
+    full: "max-w-none",
   }[size];
 
   return (

@@ -219,9 +219,16 @@ export function CardModal({
           : `Add a task to ${columns.find((column) => column.id === createColumnId)?.name || "this column"}.`
       }
       onClose={onClose}
-      size="lg"
+      // Creating a card has no comment panel, so full width would stretch a
+      // single column of inputs across the whole screen.
+      size={editing ? "xl" : "lg"}
     >
-      <div className={editing ? "grid lg:grid-cols-[1fr_0.8fr]" : ""}>
+      {/*
+        The comment panel holds a fixed width rather than a fraction, so any
+        extra room the dialog gains goes to the form rather than to empty space
+        beside the comment list.
+      */}
+      <div className={editing ? "grid lg:grid-cols-[minmax(0,1fr)_26rem]" : ""}>
         <form onSubmit={submitCard} className="space-y-5 p-5 sm:p-6">
           <label className="block text-sm font-semibold">
             Title
