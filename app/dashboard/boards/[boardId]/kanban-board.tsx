@@ -166,7 +166,13 @@ function KanbanCard({
   todayMs: number | null;
   onOpen: () => void;
 }) {
-  const { ref, handleRef, isDragging } = useSortable<DragData>({
+  /**
+   * No handle: the card itself is the drag source. dnd-kit falls back to
+   * `draggable.element` as the activator and gives it a tabindex and a role of
+   * its own, so keyboard dragging moves onto the card rather than disappearing
+   * with the grip icon.
+   */
+  const { ref, isDragging } = useSortable<DragData>({
     id: card.id,
     index,
     group: columnId,
@@ -180,28 +186,23 @@ function KanbanCard({
   return (
     <article
       ref={ref}
-      className={`group relative rounded-lg border bg-white px-3.5 py-3 transition ${
+      // No `touch-none` here, unlike the column handle: it would stop the
+      // column from scrolling under a finger. The press delay is what
+      // separates a scroll from a drag, and dnd-kit blocks touchmove itself
+      // once a drag is actually underway.
+      className={`group relative cursor-grab select-none rounded-lg border bg-white px-3.5 py-3 transition active:cursor-grabbing ${
         isDragging
           ? "z-20 border-[#8bc34a] opacity-60 shadow-xl"
           : "border-slate-200/90 shadow-[0_1px_2px_rgb(15_23_42/0.06)] hover:border-slate-300 hover:shadow-md"
       }`}
     >
       <button
-        ref={handleRef}
         type="button"
-        className="absolute right-1.5 top-1.5 grid size-7 cursor-grab place-items-center rounded-lg text-slate-300 opacity-100 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing focus-visible:opacity-100 focus-visible:outline-3 focus-visible:outline-[#689f38] sm:opacity-0 sm:group-hover:opacity-100"
-        aria-label={`Drag ${card.title}`}
-      >
-        <GripVertical size={16} aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        data-no-drag
         onClick={onOpen}
         className="block w-full text-left focus-visible:rounded focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[#689f38]"
       >
         {card.labels.length > 0 && (
-          <div className="flex flex-wrap gap-1 pr-7" aria-label="Labels">
+          <div className="flex flex-wrap gap-1" aria-label="Labels">
             {card.labels.map((label) => (
               <span
                 key={label.id}
@@ -215,7 +216,7 @@ function KanbanCard({
           </div>
         )}
 
-        <h3 className="mt-2 pr-7 text-[13px] font-extrabold uppercase leading-snug tracking-wide text-slate-800">
+        <h3 className="mt-2 text-[13px] font-extrabold uppercase leading-snug tracking-wide text-slate-800">
           {card.title}
         </h3>
 
@@ -322,7 +323,8 @@ function KanbanColumn({
         <button
           ref={handleRef}
           type="button"
-          className="grid size-8 cursor-grab place-items-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing focus-visible:outline-3 focus-visible:outline-[#689f38]"
+          data-drag-handle
+          className="relative grid size-8 cursor-grab touch-none select-none place-items-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-600 active:cursor-grabbing focus-visible:outline-3 focus-visible:outline-[#689f38]"
           aria-label={`Drag column ${column.name}`}
         >
           <GripVertical size={17} aria-hidden="true" />
@@ -455,6 +457,11 @@ export function KanbanBoard({
   const dragBoard = useRef<BoardDTO | null>(null);
   const remoteRefreshTimer = useRef<number | undefined>(undefined);
   /**
+   * The card body is both the drag source and the button that opens it, so the
+   * click that follows a drop has to be told apart from a real tap.
+   */
+  const lastDragEnd = useRef(0);
+  /**
    * Read from a timer callback that outlives the render it was scheduled in,
    * so the blocking conditions have to live in a ref rather than a closure.
    */
@@ -503,6 +510,8 @@ export function KanbanBoard({
   }
 
   function openCard(cardId: string) {
+    // Dropping a card fires a click on it; only a genuine tap should open it.
+    if (Date.now() - lastDragEnd.current < 250) return;
     router.push(`/dashboard/boards/${board.id}?card=${cardId}`, {
       scroll: false,
     });
@@ -594,6 +603,7 @@ export function KanbanBoard({
   }
 
   function onDragEnd(event: DragEndEvent) {
+    lastDragEnd.current = Date.now();
     const snapshot = dragSnapshot.current;
     const current = dragBoard.current;
     dragSnapshot.current = null;
@@ -702,8 +712,9 @@ export function KanbanBoard({
   return (
     <>
       <p id="kanban-drag-instructions" className="sr-only">
-        Use a drag handle, then press Space or Enter to pick up an item. Use
-        arrow keys to move it, Space or Enter to drop it, and Escape to cancel.
+        Focus a card, or a column&apos;s drag handle, then press Space or Enter
+        to pick it up. Use arrow keys to move it, Space or Enter to drop it, and
+        Escape to cancel.
       </p>
 
       <DragDropProvider
@@ -713,9 +724,11 @@ export function KanbanBoard({
             activationConstraints: (event) =>
               event.pointerType === "touch"
                 ? [
+                    // A finger never holds still: 5px of tolerance cancelled
+                    // the press before the delay was up.
                     new PointerActivationConstraints.Delay({
                       value: 250,
-                      tolerance: 5,
+                      tolerance: 12,
                     }),
                   ]
                 : [new PointerActivationConstraints.Distance({ value: 8 })],

@@ -48,6 +48,26 @@ details > summary::-webkit-details-marker {
   display: none;
 }
 
+/*
+ * Drag handles fade in on hover, which no finger can trigger — on a touchscreen
+ * they stay fully transparent and there is nothing to aim at. `any-pointer`
+ * rather than `pointer` so a laptop with both a trackpad and a touchscreen still
+ * matches. Unlayered, so it beats Tailwind's `@layer utilities` opacity rule
+ * regardless of source order.
+ */
+@media (any-pointer: coarse) {
+  [data-drag-handle] {
+    opacity: 1;
+  }
+
+  /* Widens the target to roughly 44px without disturbing the layout around it. */
+  [data-drag-handle]::after {
+    content: "";
+    position: absolute;
+    inset: -0.5rem;
+  }
+}
+
 .kanban-scroll {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e1 transparent;
