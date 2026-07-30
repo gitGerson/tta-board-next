@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowRight,
   CalendarDays,
   MessageSquare,
   Pencil,
@@ -38,6 +37,7 @@ import type {
 import { Modal } from "@/app/dashboard/_components/modal";
 import { CardChecklists } from "./card-checklists";
 import { CommentContent } from "./comment-content";
+import { DateRangePicker } from "./date-range-picker";
 
 const CommentEditor = dynamic(
   () => import("./comment-editor").then((module) => module.CommentEditor),
@@ -431,43 +431,13 @@ export function CardModal({
 
           <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <fieldset>
-              <legend className="inline-flex items-center gap-2 text-sm font-semibold">
-                <CalendarDays size={16} aria-hidden="true" />
-                Date range
-              </legend>
-              <div className="mt-2 flex items-center rounded-xl border border-slate-300 bg-white focus-within:border-[#689f38] focus-within:ring-3 focus-within:ring-[#8bc34a]/20">
-                <label className="min-w-0 flex-1 px-3 py-1.5">
-                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                    Start
-                  </span>
-                  <input
-                    name="startAt"
-                    type="date"
-                    value={startDate}
-                    max={dueDate || undefined}
-                    onChange={(event) => setStartDate(event.target.value)}
-                    className="mt-0.5 w-full min-w-0 bg-transparent text-sm outline-none"
-                  />
-                </label>
-                <ArrowRight
-                  size={15}
-                  className="shrink-0 text-slate-400"
-                  aria-hidden="true"
-                />
-                <label className="min-w-0 flex-1 px-3 py-1.5">
-                  <span className="block text-[10px] font-bold uppercase tracking-wide text-slate-400">
-                    End
-                  </span>
-                  <input
-                    name="dueAt"
-                    type="date"
-                    value={dueDate}
-                    min={startDate || undefined}
-                    onChange={(event) => setDueDate(event.target.value)}
-                    className="mt-0.5 w-full min-w-0 bg-transparent text-sm outline-none"
-                  />
-                </label>
-              </div>
+              <legend className="text-sm font-semibold">Date range</legend>
+              <DateRangePicker
+                startDate={startDate}
+                dueDate={dueDate}
+                onStartDateChange={setStartDate}
+                onDueDateChange={setDueDate}
+              />
             </fieldset>
             <label className="block text-sm font-semibold">
               <span className="inline-flex items-center gap-2">
