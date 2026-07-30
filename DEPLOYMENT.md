@@ -22,7 +22,7 @@ on a host inside the network that can reach both.
 | --- | --- |
 | Node.js | `>= 20.9.0` (Next.js 16 requirement) |
 | PostgreSQL | Reachable from the app host |
-| LDAP directory | Reachable over `ldaps://` from the app host |
+| LDAP directory | Reachable from the app host; `ldaps://` is strongly recommended |
 | Reverse proxy | Must forward WebSocket upgrades — see [nginx](#reverse-proxy-nginx) |
 
 ## Deploying on aaPanel
@@ -55,6 +55,17 @@ HOST=127.0.0.1        # accept only reverse-proxied traffic
 
 Leave `HOST` unset to bind `0.0.0.0`, which is useful while testing by IP but
 should not be how you leave it.
+
+Plain LDAP is disabled by default because it sends the service bind and user
+credentials without transport encryption. If an isolated legacy directory only
+supports port 389, enable it explicitly:
+
+```bash
+LDAP_URL=ldap://19.38.40.5:389
+LDAP_ALLOW_INSECURE=true
+```
+
+Restrict port 389 so it is reachable only from the application host.
 
 If `SESSION_SECRET` is missing the server **refuses to start**. That is
 deliberate: it is the key that authenticates WebSocket handshakes, and starting

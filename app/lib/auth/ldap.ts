@@ -60,17 +60,9 @@ export function readLdapConfig(
   const url = required(environment, "LDAP_URL");
   const allowInsecure = environment.LDAP_ALLOW_INSECURE === "true";
 
-  if (environment.NODE_ENV === "production" && !url.startsWith("ldaps://")) {
-    throw new Error("Production LDAP connections must use LDAPS.");
-  }
-
-  if (
-    environment.NODE_ENV !== "production" &&
-    !url.startsWith("ldaps://") &&
-    !allowInsecure
-  ) {
+  if (!url.startsWith("ldaps://") && !allowInsecure) {
     throw new Error(
-      "Plain LDAP requires LDAP_ALLOW_INSECURE=true outside production.",
+      "Plain LDAP requires LDAP_ALLOW_INSECURE=true.",
     );
   }
 

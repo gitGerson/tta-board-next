@@ -149,14 +149,23 @@ describe("LDAP authentication service", () => {
     expect(client.unbind).toHaveBeenCalledOnce();
   });
 
-  it("rejects insecure production configuration", () => {
+  it("requires an explicit opt-in for plain LDAP in production", () => {
     expect(() =>
       readLdapConfig({
         ...environment,
         NODE_ENV: "production",
         LDAP_URL: "ldap://ldap.example.com:389",
       }),
-    ).toThrow("must use LDAPS");
+    ).toThrow("LDAP_ALLOW_INSECURE=true");
+
+    expect(
+      readLdapConfig({
+        ...environment,
+        NODE_ENV: "production",
+        LDAP_URL: "ldap://ldap.example.com:389",
+        LDAP_ALLOW_INSECURE: "true",
+      }).url,
+    ).toBe("ldap://ldap.example.com:389");
   });
 
   it("requires an explicit opt-in for plain LDAP during development", () => {
