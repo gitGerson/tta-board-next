@@ -63,7 +63,7 @@ export function SingleMemberPicker({
             type="button"
             disabled={disabled}
             className="inline-flex h-9 w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-2.5 text-left text-xs outline-none hover:bg-slate-50 focus:border-[#689f38] focus:ring-2 focus:ring-[#8bc34a]/20 disabled:opacity-60"
-            aria-label="Select group PIC"
+            aria-label="Select PIC"
           >
             {selected ? (
               <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#689f38] text-[9px] font-black text-white">
