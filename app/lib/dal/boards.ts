@@ -45,6 +45,7 @@ export type CardSummaryDTO = {
   startAt: string | null;
   dueAt: string | null;
   assignee: UserOptionDTO | null;
+  canOpen: boolean;
   labels: LabelDTO[];
   commentCount: number;
   /** Checklist items across every group on the card, for the progress bar. */
@@ -108,6 +109,7 @@ export type CardDetailsDTO = CardSummaryDTO & {
   descriptionDocument: RichTextDocument | null;
   comments: CommentDTO[];
   checklistGroups: ChecklistGroupDTO[];
+  members: UserOptionDTO[];
 };
 
 function cardDescriptionDocument(value: string | null): RichTextDocument | null {
@@ -122,13 +124,19 @@ function cardDescriptionText(value: string | null): string | null {
 export async function getCardRoute(
   cardIdInput: string,
 ): Promise<{ id: string; boardRouteKey: string } | null> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const cardIdResult = entityIdSchema.safeParse(cardIdInput);
 
   if (!cardIdResult.success) return null;
 
-  const card = await db.card.findUnique({
-    where: { id: cardIdResult.data },
+  const card = await db.card.findFirst({
+    where: {
+      id: cardIdResult.data,
+      OR: [
+        { assigneeId: currentUser.id },
+        { members: { some: { userId: currentUser.id } } },
+      ],
+    },
     select: {
       id: true,
       column: {
@@ -241,26 +249,27 @@ async function checklistProgressByCard(
 }
 
 export async function getBoard(boardIdInput: string): Promise<BoardDTO> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const boardId = entityIdSchema.parse(boardIdInput);
 
-  return loadBoard({ id: boardId });
+  return loadBoard({ id: boardId }, currentUser.id);
 }
 
 export async function getBoardByRouteKey(
   routeKey: string,
 ): Promise<BoardDTO> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
 
   if (!isBoardKey(routeKey)) {
     throw new NotFoundError("Board");
   }
 
-  return loadBoard({ routeKey });
+  return loadBoard({ routeKey }, currentUser.id);
 }
 
 async function loadBoard(
   where: { id: string } | { routeKey: string },
+  currentUserId: string,
 ): Promise<BoardDTO> {
   const board = await db.board.findUnique({
     where,
@@ -289,8 +298,13 @@ async function loadBoard(
               position: true,
               startAt: true,
               dueAt: true,
+              assigneeId: true,
               assignee: {
                 select: { id: true, displayName: true },
+              },
+              members: {
+                where: { userId: currentUserId },
+                select: { userId: true },
               },
               labels: {
                 select: {
@@ -335,6 +349,8 @@ async function loadBoard(
           assignee: card.assignee
             ? { id: card.assignee.id, name: card.assignee.displayName }
             : null,
+          canOpen:
+            card.assigneeId === currentUserId || card.members.length > 0,
           labels: card.labels.map(({ label }) => label),
           commentCount: card._count.comments,
           doneItems: tally.done,
@@ -349,7 +365,7 @@ export async function getCardDetails(
   boardIdInput: string,
   cardIdInput: string,
 ): Promise<CardDetailsDTO | null> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const boardIdResult = entityIdSchema.safeParse(boardIdInput);
   const cardIdResult = entityIdSchema.safeParse(cardIdInput);
 
@@ -361,6 +377,10 @@ export async function getCardDetails(
     where: {
       id: cardIdResult.data,
       column: { boardId: boardIdResult.data },
+      OR: [
+        { assigneeId: currentUser.id },
+        { members: { some: { userId: currentUser.id } } },
+      ],
     },
     select: {
       id: true,
@@ -372,6 +392,15 @@ export async function getCardDetails(
       dueAt: true,
       assignee: {
         select: { id: true, displayName: true },
+      },
+      members: {
+        orderBy: [
+          { user: { displayName: "asc" } },
+          { userId: "asc" },
+        ],
+        select: {
+          user: { select: { id: true, displayName: true } },
+        },
       },
       labels: {
         select: {
@@ -463,6 +492,11 @@ export async function getCardDetails(
     assignee: card.assignee
       ? { id: card.assignee.id, name: card.assignee.displayName }
       : null,
+    canOpen: true,
+    members: card.members.map(({ user }) => ({
+      id: user.id,
+      name: user.displayName,
+    })),
     labels: card.labels.map(({ label }) => label),
     commentCount: card._count.comments,
     doneItems: items.filter((item) => item.isDone).length,

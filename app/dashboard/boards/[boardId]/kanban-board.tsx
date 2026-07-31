@@ -560,6 +560,13 @@ export function KanbanBoard({
   function openCard(cardId: string) {
     // Dropping a card fires a click on it; only a genuine tap should open it.
     if (Date.now() - lastDragEnd.current < 250) return;
+    const card = board.columns
+      .flatMap((column) => column.cards)
+      .find((candidate) => candidate.id === cardId);
+    if (!card?.canOpen) {
+      setToast("Only card members and the PIC can open this card.");
+      return;
+    }
     router.push(`${boardPath(board.routeKey)}?card=${cardId}`, {
       scroll: false,
     });
@@ -885,8 +892,8 @@ export function KanbanBoard({
 
       {requestedCardMissing && (
         <Modal
-          title="Card not found"
-          description="The card may have been deleted or belongs to another board."
+          title="Card unavailable"
+          description="The card may have been deleted, belongs to another board, or you are not a member/PIC."
           onClose={closeCard}
           size="sm"
         >

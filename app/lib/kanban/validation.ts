@@ -15,6 +15,16 @@ const optionalText = z
   .max(5_000)
   .nullish()
   .transform((value) => value || null);
+const updateOptionalText = z
+  .string()
+  .trim()
+  .max(5_000)
+  .nullable()
+  .optional();
+const cardTitle = z.string().trim().min(1).max(200);
+const cardDate = z.date().nullable();
+const cardAssigneeId = uuid.nullable();
+const cardLabelIds = z.array(uuid).max(20);
 
 export const createBoardSchema = z.object({
   name,
@@ -59,18 +69,23 @@ export const updateLabelSchema = z.object({
 
 export const createCardSchema = z.object({
   columnId: uuid,
-  title: z.string().trim().min(1).max(200),
+  title: cardTitle,
   description: optionalText,
-  startAt: z.date().nullable().optional().default(null),
-  dueAt: z.date().nullable().optional().default(null),
-  assigneeId: uuid.nullable().optional().default(null),
-  labelIds: z.array(uuid).max(20).default([]),
+  startAt: cardDate.optional().default(null),
+  dueAt: cardDate.optional().default(null),
+  assigneeId: cardAssigneeId.optional().default(null),
+  labelIds: cardLabelIds.default([]),
 });
 
-export const updateCardSchema = createCardSchema
-  .omit({ columnId: true })
-  .partial()
-  .extend({ cardId: uuid });
+export const updateCardSchema = z.object({
+  cardId: uuid,
+  title: cardTitle.optional(),
+  description: updateOptionalText,
+  startAt: cardDate.optional(),
+  dueAt: cardDate.optional(),
+  assigneeId: cardAssigneeId.optional(),
+  labelIds: cardLabelIds.optional(),
+});
 
 export const updateCardDescriptionSchema = z.object({
   cardId: uuid,
@@ -107,6 +122,12 @@ export const updateCardDescriptionSchema = z.object({
     });
     return z.NEVER;
   }),
+});
+
+export const updateCardMembersSchema = z.object({
+  cardId: uuid,
+  memberIds: z.array(uuid).min(1).max(50),
+  picId: uuid.nullable(),
 });
 
 export const moveCardSchema = z.object({
@@ -190,6 +211,7 @@ export type UpdateCardInput = z.infer<typeof updateCardSchema>;
 export type UpdateCardDescriptionInput = z.input<
   typeof updateCardDescriptionSchema
 >;
+export type UpdateCardMembersInput = z.infer<typeof updateCardMembersSchema>;
 export type MoveCardInput = z.infer<typeof moveCardSchema>;
 export type CreateCommentInput = z.infer<typeof createCommentSchema>;
 export type CreateChecklistGroupInput = z.infer<

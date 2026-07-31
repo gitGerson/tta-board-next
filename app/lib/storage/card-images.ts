@@ -7,6 +7,7 @@ import { NotFoundError } from "@/app/lib/dal/errors";
 import { db } from "@/app/lib/db/client";
 import { entityIdSchema } from "@/app/lib/kanban/validation";
 import { MAX_INLINE_IMAGE_DATA_URL_LENGTH } from "@/app/lib/rich-text/content";
+import { cardAccessWhere } from "@/app/lib/services/card-access";
 
 const webpDataUrl = z
   .string()
@@ -44,11 +45,11 @@ async function uploadCardImage(input: {
   dataUrl: string;
   scope: "descriptions" | "comments";
 }): Promise<string> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const cardId = entityIdSchema.parse(input.cardId);
   const dataUrl = webpDataUrl.parse(input.dataUrl);
-  const card = await db.card.findUnique({
-    where: { id: cardId },
+  const card = await db.card.findFirst({
+    where: cardAccessWhere(cardId, currentUser.id),
     select: { id: true },
   });
 

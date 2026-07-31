@@ -7,7 +7,9 @@ const mocks = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
   transaction: vi.fn(),
   groupFindUnique: vi.fn(),
+  cardFindFirst: vi.fn(),
   itemFindUnique: vi.fn(),
+  itemFindFirst: vi.fn(),
   itemFindMany: vi.fn(),
   itemUpdate: vi.fn(),
   itemDelete: vi.fn(),
@@ -21,7 +23,7 @@ vi.mock("@/app/lib/db/client", () => ({
   db: {
     $transaction: mocks.transaction,
     checklistItem: {
-      findUnique: mocks.itemFindUnique,
+      findFirst: mocks.itemFindFirst,
       update: mocks.itemUpdate,
     },
   },
@@ -54,6 +56,7 @@ describe("checklist service", () => {
     mocks.transaction.mockImplementation(
       async (operation: (tx: unknown) => Promise<unknown>) =>
         operation({
+          card: { findFirst: mocks.cardFindFirst },
           checklistGroup: { findUnique: mocks.groupFindUnique },
           checklistItem: {
             findUnique: mocks.itemFindUnique,
@@ -63,6 +66,7 @@ describe("checklist service", () => {
           },
         }),
     );
+    mocks.cardFindFirst.mockResolvedValue({ id: "card-a" });
   });
 
   describe("moveChecklistItem", () => {
@@ -148,7 +152,7 @@ describe("checklist service", () => {
 
   describe("setChecklistItemDone", () => {
     it("stamps who completed it alongside when", async () => {
-      mocks.itemFindUnique.mockResolvedValue({ id: ITEM });
+      mocks.itemFindFirst.mockResolvedValue({ id: ITEM });
 
       await setChecklistItemDone({ itemId: ITEM, isDone: true });
 
@@ -159,7 +163,7 @@ describe("checklist service", () => {
     });
 
     it("clears both stamps when unticked, never one alone", async () => {
-      mocks.itemFindUnique.mockResolvedValue({ id: ITEM });
+      mocks.itemFindFirst.mockResolvedValue({ id: ITEM });
 
       await setChecklistItemDone({ itemId: ITEM, isDone: false });
 
@@ -173,7 +177,11 @@ describe("checklist service", () => {
 
   describe("deleteChecklistItem", () => {
     it("closes the gap left in the group's positions", async () => {
-      mocks.itemFindUnique.mockResolvedValue({ id: ITEM, groupId: GROUP_A });
+      mocks.itemFindUnique.mockResolvedValue({
+        id: ITEM,
+        groupId: GROUP_A,
+        group: { cardId: "card-a" },
+      });
       mocks.itemFindMany.mockResolvedValue([{ id: "a" }, { id: "b" }]);
 
       await deleteChecklistItem(ITEM);

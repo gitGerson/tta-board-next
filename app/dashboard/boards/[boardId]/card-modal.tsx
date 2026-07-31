@@ -3,7 +3,6 @@
 import {
   CalendarDays,
   Check,
-  ChevronDown,
   MessageSquare,
   Pencil,
   Plus,
@@ -46,6 +45,7 @@ import type { RichTextDocument } from "@/app/lib/rich-text/content";
 import { Modal } from "@/app/dashboard/_components/modal";
 import { CardChecklists } from "./card-checklists";
 import { CardLabelEditor } from "./card-label-editor";
+import { CardMemberEditor } from "./card-member-editor";
 import { CommentContent } from "./comment-content";
 import { DateRangePicker } from "./date-range-picker";
 import { RichTextContent } from "./rich-text-content";
@@ -229,7 +229,6 @@ export function CardModal({
     "idle" | "copied" | "error"
   >("idle");
   const [commentResetVersion, setCommentResetVersion] = useState(0);
-  const [assigneeId, setAssigneeId] = useState(details?.assignee?.id || "");
   const [startDate, setStartDate] = useState(
     dateInputValue(details?.startAt || null),
   );
@@ -244,6 +243,8 @@ export function CardModal({
       (added) => !initialLabels.some((label) => label.id === added.id),
     ),
   ];
+  const memberIds = new Set(details?.members.map((member) => member.id) ?? []);
+  const cardMembers = users.filter((user) => memberIds.has(user.id));
 
   useEffect(() => {
     return () => {
@@ -324,26 +325,6 @@ export function CardModal({
       if (actionResult.ok) {
         setEditingField(null);
         router.refresh();
-      }
-    });
-  }
-
-  function changeAssignee(nextAssigneeId: string) {
-    if (!details) return;
-
-    const previousAssigneeId = assigneeId;
-    setAssigneeId(nextAssigneeId);
-    setResult(null);
-    startTransition(async () => {
-      const actionResult = await updateCardAction({
-        cardId: details.id,
-        assigneeId: nextAssigneeId || null,
-      });
-      setResult(actionResult);
-      if (actionResult.ok) {
-        router.refresh();
-      } else {
-        setAssigneeId(previousAssigneeId);
       }
     });
   }
@@ -574,7 +555,7 @@ export function CardModal({
                 )}
               </div>
 
-              <section className="border-b border-slate-100 pb-3">
+              <section className="border-b border-slate-100 pb-2">
                 <CardLabelEditor
                   boardId={boardId}
                   cardId={details.id}
@@ -588,7 +569,66 @@ export function CardModal({
                 />
               </section>
 
-              <section className="border-b border-slate-100 pb-5 pt-3">
+              <section className="border-b border-slate-100 py-2">
+                <div className="flex items-center gap-1.5">
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Date range
+                  </h3>
+                  <FieldEditButton
+                    label="date range"
+                    onClick={() => editField("dates")}
+                  />
+                </div>
+                {editingField === "dates" ? (
+                  <form
+                    onSubmit={(event) => submitDetailField(event, "dates")}
+                    className="mt-1.5 flex max-w-xs items-center gap-1.5"
+                  >
+                    <DateRangePicker
+                      startDate={startDate}
+                      dueDate={dueDate}
+                      onStartDateChange={setStartDate}
+                      onDueDateChange={setDueDate}
+                      compact
+                    />
+                    <InlineEditActions
+                      pending={isPending}
+                      onCancel={() => {
+                        setStartDate(dateInputValue(details.startAt));
+                        setDueDate(dateInputValue(details.dueAt));
+                        setEditingField(null);
+                      }}
+                      inline
+                    />
+                  </form>
+                ) : (
+                  <p className="mt-1.5 inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                    <CalendarDays
+                      size={15}
+                      className="text-slate-400"
+                      aria-hidden="true"
+                    />
+                    {detailDateRange(details.startAt, details.dueAt)}
+                  </p>
+                )}
+              </section>
+
+              <section className="border-b border-slate-100 py-2">
+                <CardMemberEditor
+                  key={[
+                    details.assignee?.id || "",
+                    ...details.members.map((member) => member.id),
+                  ].join(":")}
+                  cardId={details.id}
+                  members={details.members}
+                  users={users}
+                  picId={details.assignee?.id || null}
+                  onError={setResult}
+                  onSaved={() => router.refresh()}
+                />
+              </section>
+
+              <section className="border-b border-slate-100 pb-3 pt-2">
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
                     Description
@@ -613,79 +653,6 @@ export function CardModal({
                     No description provided.
                   </p>
                 )}
-              </section>
-
-              <section className="grid gap-3 pb-5 pt-3 sm:grid-cols-2">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                      Date range
-                    </h3>
-                    <FieldEditButton
-                      label="date range"
-                      onClick={() => editField("dates")}
-                    />
-                  </div>
-                  {editingField === "dates" ? (
-                    <form
-                      onSubmit={(event) => submitDetailField(event, "dates")}
-                      className="mt-2 flex max-w-xs items-center gap-1.5"
-                    >
-                      <DateRangePicker
-                        startDate={startDate}
-                        dueDate={dueDate}
-                        onStartDateChange={setStartDate}
-                        onDueDateChange={setDueDate}
-                        compact
-                      />
-                      <InlineEditActions
-                        pending={isPending}
-                        onCancel={() => {
-                          setStartDate(dateInputValue(details.startAt));
-                          setDueDate(dateInputValue(details.dueAt));
-                          setEditingField(null);
-                        }}
-                        inline
-                      />
-                    </form>
-                  ) : (
-                    <p className="mt-2 inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-                      <CalendarDays
-                        size={15}
-                        className="text-slate-400"
-                        aria-hidden="true"
-                      />
-                      {detailDateRange(details.startAt, details.dueAt)}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                    PIC
-                  </h3>
-                  <div className="relative mt-2 inline-flex max-w-full items-center">
-                    <select
-                      value={assigneeId}
-                      onChange={(event) => changeAssignee(event.target.value)}
-                      disabled={isPending}
-                      className="h-8 max-w-full cursor-pointer appearance-none truncate rounded-full border border-slate-200 bg-slate-100 py-1 pl-3 pr-7 text-xs font-semibold text-slate-700 outline-none hover:border-slate-300 hover:bg-slate-200 focus:border-[#689f38] focus:ring-2 focus:ring-[#8bc34a]/20 disabled:cursor-wait disabled:opacity-60"
-                      aria-label="Change PIC"
-                      title="Change PIC"
-                    >
-                      <option value="">Unassigned</option>
-                      {users.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name} ({user.username})
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      size={12}
-                      className="pointer-events-none absolute right-2 text-slate-400"
-                      aria-hidden="true"
-                    />
-                  </div>
-                </div>
               </section>
 
               <ActionError result={result} />
@@ -844,7 +811,7 @@ export function CardModal({
               <CardChecklists
                 cardId={details.id}
                 groups={details.checklistGroups}
-                users={users}
+                users={cardMembers}
                 onError={setResult}
               />
             </div>

@@ -22,6 +22,7 @@ import {
   type UpdateChecklistItemInput,
 } from "@/app/lib/kanban/validation";
 import { assertActiveUsers } from "./user-validation";
+import { assertCardAccess, assertCardUsersAreMembers } from "./card-access";
 
 const BY_POSITION = [
   { position: "asc" as const },
@@ -74,7 +75,7 @@ async function nextPosition(
 }
 
 export async function createChecklistGroup(input: CreateChecklistGroupInput) {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const data = createChecklistGroupSchema.parse(input);
 
   return db.$transaction(async (tx) => {
@@ -85,8 +86,14 @@ export async function createChecklistGroup(input: CreateChecklistGroupInput) {
     if (!card) {
       throw new NotFoundError("Card");
     }
+    await assertCardAccess(tx, card.id, currentUser.id);
 
     await assertActiveUsers(tx, data.picId ? [data.picId] : []);
+    await assertCardUsersAreMembers(
+      tx,
+      card.id,
+      data.picId ? [data.picId] : [],
+    );
 
     return tx.checklistGroup.create({
       data: {
@@ -111,19 +118,25 @@ export async function createChecklistGroup(input: CreateChecklistGroupInput) {
 export async function updateChecklistGroup(
   input: UpdateChecklistGroupInput,
 ): Promise<void> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const data = updateChecklistGroupSchema.parse(input);
 
   await db.$transaction(async (tx) => {
     const group = await tx.checklistGroup.findUnique({
       where: { id: data.groupId },
-      select: { id: true },
+      select: { id: true, cardId: true },
     });
     if (!group) {
       throw new NotFoundError("Checklist group");
     }
+    await assertCardAccess(tx, group.cardId, currentUser.id);
 
     await assertActiveUsers(tx, data.picId ? [data.picId] : []);
+    await assertCardUsersAreMembers(
+      tx,
+      group.cardId,
+      data.picId ? [data.picId] : [],
+    );
 
     await tx.checklistGroup.update({
       where: { id: group.id },
@@ -143,7 +156,7 @@ export async function updateChecklistGroup(
 export async function moveChecklistGroup(
   input: MoveChecklistGroupInput,
 ): Promise<void> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const data = moveChecklistGroupSchema.parse(input);
 
   await db.$transaction(async (tx) => {
@@ -154,6 +167,7 @@ export async function moveChecklistGroup(
     if (!group) {
       throw new NotFoundError("Checklist group");
     }
+    await assertCardAccess(tx, group.cardId, currentUser.id);
 
     const siblings = await tx.checklistGroup.findMany({
       where: { cardId: group.cardId, id: { not: group.id } },
@@ -178,7 +192,7 @@ export async function moveChecklistGroup(
 export async function deleteChecklistGroup(
   groupIdInput: string,
 ): Promise<void> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const groupId = entityIdSchema.parse(groupIdInput);
 
   await db.$transaction(async (tx) => {
@@ -189,6 +203,7 @@ export async function deleteChecklistGroup(
     if (!group) {
       throw new NotFoundError("Checklist group");
     }
+    await assertCardAccess(tx, group.cardId, currentUser.id);
 
     await tx.checklistGroup.delete({ where: { id: group.id } });
     await renumberGroups(tx, group.cardId);
@@ -196,20 +211,22 @@ export async function deleteChecklistGroup(
 }
 
 export async function createChecklistItem(input: CreateChecklistItemInput) {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const data = createChecklistItemSchema.parse(input);
   const assigneeIds = [...new Set(data.assigneeIds)];
 
   return db.$transaction(async (tx) => {
     const group = await tx.checklistGroup.findUnique({
       where: { id: data.groupId },
-      select: { id: true },
+      select: { id: true, cardId: true },
     });
     if (!group) {
       throw new NotFoundError("Checklist group");
     }
+    await assertCardAccess(tx, group.cardId, currentUser.id);
 
     await assertActiveUsers(tx, assigneeIds);
+    await assertCardUsersAreMembers(tx, group.cardId, assigneeIds);
 
     return tx.checklistItem.create({
       data: {
@@ -237,7 +254,7 @@ export async function createChecklistItem(input: CreateChecklistItemInput) {
 export async function updateChecklistItem(
   input: UpdateChecklistItemInput,
 ): Promise<void> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const data = updateChecklistItemSchema.parse(input);
   const assigneeIds = data.assigneeIds
     ? [...new Set(data.assigneeIds)]
@@ -246,14 +263,16 @@ export async function updateChecklistItem(
   await db.$transaction(async (tx) => {
     const item = await tx.checklistItem.findUnique({
       where: { id: data.itemId },
-      select: { id: true },
+      select: { id: true, group: { select: { cardId: true } } },
     });
     if (!item) {
       throw new NotFoundError("Checklist item");
     }
+    await assertCardAccess(tx, item.group.cardId, currentUser.id);
 
     if (assigneeIds) {
       await assertActiveUsers(tx, assigneeIds);
+      await assertCardUsersAreMembers(tx, item.group.cardId, assigneeIds);
     }
 
     await tx.checklistItem.update({
@@ -282,7 +301,7 @@ export async function updateChecklistItem(
 export async function moveChecklistItem(
   input: MoveChecklistItemInput,
 ): Promise<void> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const data = moveChecklistItemSchema.parse(input);
 
   await db.$transaction(async (tx) => {
@@ -298,6 +317,7 @@ export async function moveChecklistItem(
     if (!item || !targetGroup) {
       throw new NotFoundError(!item ? "Checklist item" : "Target group");
     }
+    await assertCardAccess(tx, item.group.cardId, currentUser.id);
     if (item.group.cardId !== targetGroup.cardId) {
       throw new ConflictError(
         "Checklist items cannot move between different cards.",
@@ -354,8 +374,18 @@ export async function setChecklistItemDone(
   const currentUser = await requireCurrentUser();
   const data = setChecklistItemDoneSchema.parse(input);
 
-  const item = await db.checklistItem.findUnique({
-    where: { id: data.itemId },
+  const item = await db.checklistItem.findFirst({
+    where: {
+      id: data.itemId,
+      group: {
+        card: {
+          OR: [
+            { assigneeId: currentUser.id },
+            { members: { some: { userId: currentUser.id } } },
+          ],
+        },
+      },
+    },
     select: { id: true },
   });
   if (!item) {
@@ -377,17 +407,22 @@ export async function setChecklistItemDone(
 }
 
 export async function deleteChecklistItem(itemIdInput: string): Promise<void> {
-  await requireCurrentUser();
+  const currentUser = await requireCurrentUser();
   const itemId = entityIdSchema.parse(itemIdInput);
 
   await db.$transaction(async (tx) => {
     const item = await tx.checklistItem.findUnique({
       where: { id: itemId },
-      select: { id: true, groupId: true },
+      select: {
+        id: true,
+        groupId: true,
+        group: { select: { cardId: true } },
+      },
     });
     if (!item) {
       throw new NotFoundError("Checklist item");
     }
+    await assertCardAccess(tx, item.group.cardId, currentUser.id);
 
     await tx.checklistItem.delete({ where: { id: item.id } });
     await renumberItems(tx, item.groupId);

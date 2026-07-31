@@ -17,6 +17,7 @@ function card(id: string, position: number): CardSummaryDTO {
     startAt: null,
     dueAt: null,
     assignee: null,
+    canOpen: true,
     labels: [],
     commentCount: 0,
     doneItems: 0,

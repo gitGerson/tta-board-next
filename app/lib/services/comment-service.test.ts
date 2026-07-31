@@ -11,7 +11,7 @@ const ids = {
 
 const mocks = vi.hoisted(() => ({
   requireCurrentUser: vi.fn(),
-  cardFindUnique: vi.fn(),
+  cardFindFirst: vi.fn(),
   userFindMany: vi.fn(),
   commentCreate: vi.fn(),
 }));
@@ -22,7 +22,7 @@ vi.mock("@/app/lib/dal/auth", () => ({
 
 vi.mock("@/app/lib/db/client", () => ({
   db: {
-    card: { findUnique: mocks.cardFindUnique },
+    card: { findFirst: mocks.cardFindFirst },
     user: { findMany: mocks.userFindMany },
     comment: { create: mocks.commentCreate },
   },
@@ -50,7 +50,7 @@ describe("comment service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireCurrentUser.mockResolvedValue({ id: ids.author });
-    mocks.cardFindUnique.mockResolvedValue({ id: ids.card });
+    mocks.cardFindFirst.mockResolvedValue({ id: ids.card });
     mocks.userFindMany.mockResolvedValue([{ id: ids.mentioned }]);
     mocks.commentCreate.mockResolvedValue({ id: "comment-id" });
   });

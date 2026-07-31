@@ -22,6 +22,7 @@ import type {
   SetChecklistItemDoneInput,
   UpdateCardInput,
   UpdateCardDescriptionInput,
+  UpdateCardMembersInput,
   UpdateChecklistGroupInput,
   UpdateChecklistItemInput,
   UpdateLabelInput,
@@ -42,6 +43,7 @@ import {
   moveCard,
   updateCard,
   updateCardDescription,
+  updateCardMembers,
 } from "@/app/lib/services/card-service";
 import { createComment } from "@/app/lib/services/comment-service";
 import {
@@ -201,6 +203,14 @@ export async function updateCardDescriptionAction(
 ): Promise<KanbanActionResult> {
   return runAction({ scope: { kind: "card", cardId: input.cardId } }, () =>
     updateCardDescription(input),
+  );
+}
+
+export async function updateCardMembersAction(
+  input: UpdateCardMembersInput,
+): Promise<KanbanActionResult> {
+  return runAction({ scope: { kind: "card", cardId: input.cardId } }, () =>
+    updateCardMembers(input),
   );
 }
 

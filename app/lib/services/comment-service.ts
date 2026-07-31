@@ -9,6 +9,7 @@ import {
   serializeCommentDocument,
 } from "@/app/lib/comments/content";
 import { isStoredCardImageUrl } from "@/app/lib/storage/card-images";
+import { cardAccessWhere } from "./card-access";
 import {
   createCommentSchema,
   type CreateCommentInput,
@@ -19,8 +20,8 @@ export async function createComment(input: CreateCommentInput) {
   const data = createCommentSchema.parse(input);
   const mentionIds = mentionedUserIds(data.content);
   const [card, mentionedUsers] = await Promise.all([
-    db.card.findUnique({
-      where: { id: data.cardId },
+    db.card.findFirst({
+      where: cardAccessWhere(data.cardId, currentUser.id),
       select: { id: true },
     }),
     db.user.findMany({

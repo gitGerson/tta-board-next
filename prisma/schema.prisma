@@ -24,6 +24,7 @@ model User {
   checklistGroupsAsPic    ChecklistGroup[]        @relation("ChecklistGroupPic")
   completedChecklistItems ChecklistItem[]         @relation("ChecklistItemCompleter")
   checklistAssignments    ChecklistItemAssignee[]
+  cardMemberships         CardMember[]
 
   @@map("users")
 }
@@ -76,11 +77,24 @@ model Card {
   labels          CardLabel[]
   comments        Comment[]
   checklistGroups ChecklistGroup[]
+  members         CardMember[]
 
   @@index([columnId, position])
   @@index([assigneeId])
   @@index([createdById])
   @@map("cards")
+}
+
+model CardMember {
+  cardId    String   @map("card_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, userId])
+  @@index([userId])
+  @@map("card_members")
 }
 
 /// A named stage of work inside a card. Scoped to the card alone, so a card's
