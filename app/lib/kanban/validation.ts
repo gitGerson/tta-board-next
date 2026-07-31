@@ -5,6 +5,7 @@ import {
 } from "@/app/lib/comments/content";
 import {
   normalizeRichTextDocument,
+  richTextImageSources,
 } from "@/app/lib/rich-text/content";
 
 const uuid = z.string().uuid();
@@ -25,6 +26,22 @@ const cardTitle = z.string().trim().min(1).max(200);
 const cardDate = z.date().nullable();
 const cardAssigneeId = uuid.nullable();
 const cardLabelIds = z.array(uuid).max(20);
+const groupDescriptionDocument = z
+  .unknown()
+  .transform((value, context) => {
+    if (value === null) return null;
+
+    const document = normalizeRichTextDocument(value);
+    if (document && richTextImageSources(document).length === 0) {
+      return document;
+    }
+
+    context.addIssue({
+      code: "custom",
+      message: "The group description format is invalid.",
+    });
+    return z.NEVER;
+  });
 
 export const createBoardSchema = z.object({
   name,
@@ -157,16 +174,20 @@ export const createCommentSchema = z.object({
 export const createChecklistGroupSchema = z.object({
   cardId: uuid,
   name,
-  description: optionalText,
+  descriptionDocument: groupDescriptionDocument,
   picId: uuid.nullable().optional().default(null),
   startAt: z.date().nullable().optional().default(null),
   dueAt: z.date().nullable().optional().default(null),
 });
 
-export const updateChecklistGroupSchema = createChecklistGroupSchema
-  .omit({ cardId: true })
-  .partial()
-  .extend({ groupId: uuid });
+export const updateChecklistGroupSchema = z.object({
+  groupId: uuid,
+  name: name.optional(),
+  descriptionDocument: groupDescriptionDocument.optional(),
+  picId: uuid.nullable().optional(),
+  startAt: z.date().nullable().optional(),
+  dueAt: z.date().nullable().optional(),
+});
 
 export const moveChecklistGroupSchema = z.object({
   groupId: uuid,

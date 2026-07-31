@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { updateCardSchema } from "./validation";
+import {
+  updateCardSchema,
+  updateChecklistGroupSchema,
+} from "./validation";
 
 const cardId = "10000000-0000-4000-8000-000000000001";
 const labelId = "20000000-0000-4000-8000-000000000001";
@@ -34,6 +37,49 @@ describe("card update validation", () => {
       startAt: null,
       dueAt: null,
       assigneeId: null,
+    });
+  });
+});
+
+describe("checklist group update validation", () => {
+  it("does not materialize PIC or date defaults on partial updates", () => {
+    expect(
+      updateChecklistGroupSchema.parse({
+        groupId: cardId,
+        name: "Renamed group",
+      }),
+    ).toEqual({
+      groupId: cardId,
+      name: "Renamed group",
+    });
+  });
+
+  it("normalizes a rich-text group description", () => {
+    expect(
+      updateChecklistGroupSchema.parse({
+        groupId: cardId,
+        descriptionDocument: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                { type: "text", text: "Formatted", marks: [{ type: "bold" }] },
+              ],
+            },
+          ],
+        },
+      }).descriptionDocument,
+    ).toEqual({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Formatted", marks: [{ type: "bold" }] },
+          ],
+        },
+      ],
     });
   });
 });

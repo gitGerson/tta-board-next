@@ -68,6 +68,7 @@ export type ChecklistGroupDTO = {
   id: string;
   name: string;
   description: string | null;
+  descriptionDocument: RichTextDocument | null;
   position: number;
   startAt: string | null;
   dueAt: string | null;
@@ -459,7 +460,12 @@ export async function getCardDetails(
   const checklistGroups = card.checklistGroups.map((group) => ({
     id: group.id,
     name: group.name,
-    description: group.description,
+    description: group.description
+      ? cardDescriptionText(group.description)
+      : null,
+    descriptionDocument: group.description
+      ? cardDescriptionDocument(group.description)
+      : null,
     position: group.position,
     startAt: group.startAt?.toISOString() ?? null,
     dueAt: group.dueAt?.toISOString() ?? null,

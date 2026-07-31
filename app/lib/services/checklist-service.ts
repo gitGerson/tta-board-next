@@ -23,6 +23,7 @@ import {
 } from "@/app/lib/kanban/validation";
 import { assertActiveUsers } from "./user-validation";
 import { assertCardAccess, assertCardUsersAreMembers } from "./card-access";
+import { serializeRichTextDocument } from "@/app/lib/rich-text/content";
 
 const BY_POSITION = [
   { position: "asc" as const },
@@ -99,7 +100,9 @@ export async function createChecklistGroup(input: CreateChecklistGroupInput) {
       data: {
         cardId: card.id,
         name: data.name,
-        description: data.description,
+        description: data.descriptionDocument
+          ? serializeRichTextDocument(data.descriptionDocument)
+          : null,
         picId: data.picId,
         startAt: data.startAt,
         dueAt: data.dueAt,
@@ -142,8 +145,12 @@ export async function updateChecklistGroup(
       where: { id: group.id },
       data: {
         ...(data.name !== undefined ? { name: data.name } : {}),
-        ...(data.description !== undefined
-          ? { description: data.description }
+        ...(data.descriptionDocument !== undefined
+          ? {
+              description: data.descriptionDocument
+                ? serializeRichTextDocument(data.descriptionDocument)
+                : null,
+            }
           : {}),
         ...(data.picId !== undefined ? { picId: data.picId } : {}),
         ...(data.startAt !== undefined ? { startAt: data.startAt } : {}),
