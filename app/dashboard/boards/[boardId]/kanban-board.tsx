@@ -305,7 +305,7 @@ function KanbanCard({
               <span
                 className={`grid size-7 place-items-center rounded-full text-[10px] font-extrabold text-white ring-2 ring-white ${avatarTone(card.assignee.id)}`}
                 title={card.assignee.name}
-                aria-label={`Assigned to ${card.assignee.name}`}
+                aria-label={`PIC: ${card.assignee.name}`}
               >
                 {initials(card.assignee.name)}
               </span>

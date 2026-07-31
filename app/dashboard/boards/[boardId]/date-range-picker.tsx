@@ -33,11 +33,13 @@ export function DateRangePicker({
   dueDate,
   onStartDateChange,
   onDueDateChange,
+  compact = false,
 }: {
   startDate: string;
   dueDate: string;
   onStartDateChange: (value: string) => void;
   onDueDateChange: (value: string) => void;
+  compact?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -97,7 +99,7 @@ export function DateRangePicker({
   }
 
   return (
-    <div ref={rootRef}>
+    <div ref={rootRef} className={compact ? "min-w-0 flex-1" : undefined}>
       <input type="hidden" name="startAt" value={startDate} />
       <input type="hidden" name="dueAt" value={dueDate} />
 
@@ -105,7 +107,11 @@ export function DateRangePicker({
         <Popover.Trigger asChild>
           <button
             type="button"
-            className={`mt-2 inline-flex h-10 w-full items-center justify-start gap-2 rounded-xl border border-slate-300 bg-white px-3 text-left text-sm font-normal outline-none transition hover:bg-slate-50 focus:border-[#689f38] focus:ring-3 focus:ring-[#8bc34a]/20 ${
+            className={`inline-flex w-full items-center justify-start gap-2 border border-slate-300 bg-white px-3 text-left font-normal outline-none transition hover:bg-slate-50 focus:border-[#689f38] focus:ring-2 focus:ring-[#8bc34a]/20 ${
+              compact
+                ? "h-9 rounded-lg text-xs"
+                : "mt-2 h-10 rounded-xl text-sm"
+            } ${
               selected.from ? "text-slate-800" : "text-slate-400"
             }`}
           >

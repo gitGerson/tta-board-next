@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   columnCreateMany: vi.fn(),
   columnFindUnique: vi.fn(),
   columnDelete: vi.fn(),
+  labelFindFirst: vi.fn(),
+  labelUpdate: vi.fn(),
 }));
 
 vi.mock("@/app/lib/dal/auth", () => ({
@@ -17,10 +19,16 @@ vi.mock("@/app/lib/dal/auth", () => ({
 }));
 
 vi.mock("@/app/lib/db/client", () => ({
-  db: { $transaction: mocks.transaction },
+  db: {
+    $transaction: mocks.transaction,
+    label: {
+      findFirst: mocks.labelFindFirst,
+      update: mocks.labelUpdate,
+    },
+  },
 }));
 
-import { createBoard, deleteEmptyColumn } from "./board-service";
+import { createBoard, deleteEmptyColumn, updateLabel } from "./board-service";
 
 describe("board service", () => {
   beforeEach(() => {
@@ -87,5 +95,29 @@ describe("board service", () => {
       deleteEmptyColumn("30000000-0000-4000-8000-000000000001"),
     ).rejects.toBeInstanceOf(ConflictError);
     expect(mocks.columnDelete).not.toHaveBeenCalled();
+  });
+
+  it("updates a label only within its board", async () => {
+    const boardId = "20000000-0000-4000-8000-000000000001";
+    const labelId = "40000000-0000-4000-8000-000000000001";
+    mocks.labelFindFirst.mockResolvedValue({ id: labelId });
+    mocks.labelUpdate.mockResolvedValue({ id: labelId });
+
+    await updateLabel({
+      boardId,
+      labelId,
+      name: "Priority",
+      color: "#ef4444",
+    });
+
+    expect(mocks.labelFindFirst).toHaveBeenCalledWith({
+      where: { id: labelId, boardId },
+      select: { id: true },
+    });
+    expect(mocks.labelUpdate).toHaveBeenCalledWith({
+      where: { id: labelId },
+      data: { name: "Priority", color: "#ef4444" },
+      select: { id: true },
+    });
   });
 });

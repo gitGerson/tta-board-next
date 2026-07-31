@@ -14,6 +14,7 @@ export function Modal({
   description,
   children,
   headerLeading,
+  headerActions,
   visuallyHideHeading = false,
   onClose,
   size = "md",
@@ -22,6 +23,7 @@ export function Modal({
   description?: string;
   children: ReactNode;
   headerLeading?: ReactNode;
+  headerActions?: ReactNode;
   visuallyHideHeading?: boolean;
   onClose: () => void;
   size?: "sm" | "md" | "lg" | "xl" | "2xl" | "full";
@@ -93,11 +95,16 @@ export function Modal({
               </p>
             )}
           </div>
+          {headerActions && (
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {headerActions}
+            </div>
+          )}
           <button
             type="button"
             onClick={close}
             className={`grid size-8 shrink-0 place-items-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-3 focus-visible:outline-[#689f38] ${
-              visuallyHideHeading ? "ml-auto" : ""
+              visuallyHideHeading && !headerActions ? "ml-auto" : ""
             }`}
             aria-label="Close dialog"
           >

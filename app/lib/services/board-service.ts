@@ -12,11 +12,13 @@ import {
   entityIdSchema,
   moveColumnSchema,
   renameColumnSchema,
+  updateLabelSchema,
   type CreateBoardInput,
   type CreateColumnInput,
   type CreateLabelInput,
   type MoveColumnInput,
   type RenameColumnInput,
+  type UpdateLabelInput,
 } from "@/app/lib/kanban/validation";
 
 const DEFAULT_COLUMNS = ["To Do", "In Progress", "Review", "Done"] as const;
@@ -198,5 +200,24 @@ export async function createLabel(input: CreateLabelInput) {
   return db.label.create({
     data,
     select: { id: true, name: true, color: true },
+  });
+}
+
+export async function updateLabel(input: UpdateLabelInput) {
+  await requireCurrentUser();
+  const data = updateLabelSchema.parse(input);
+  const label = await db.label.findFirst({
+    where: { id: data.labelId, boardId: data.boardId },
+    select: { id: true },
+  });
+
+  if (!label) {
+    throw new NotFoundError("Label");
+  }
+
+  return db.label.update({
+    where: { id: label.id },
+    data: { name: data.name, color: data.color },
+    select: { id: true },
   });
 }

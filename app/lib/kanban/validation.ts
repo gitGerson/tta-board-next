@@ -3,6 +3,10 @@ import {
   normalizeCommentDocument,
   type CommentDocument,
 } from "@/app/lib/comments/content";
+import {
+  normalizeRichTextDocument,
+  serializeRichTextDocument,
+} from "@/app/lib/rich-text/content";
 
 const uuid = z.string().uuid();
 const name = z.string().trim().min(1).max(100);
@@ -38,10 +42,20 @@ export const moveColumnSchema = z.object({
   targetIndex: z.number().int().nonnegative(),
 });
 
-export const createLabelSchema = z.object({
-  boardId: uuid,
+const labelFields = {
   name: z.string().trim().min(1).max(50),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Use a six-digit hex color."),
+};
+
+export const createLabelSchema = z.object({
+  boardId: uuid,
+  ...labelFields,
+});
+
+export const updateLabelSchema = z.object({
+  boardId: uuid,
+  labelId: uuid,
+  ...labelFields,
 });
 
 export const createCardSchema = z.object({
@@ -58,6 +72,43 @@ export const updateCardSchema = createCardSchema
   .omit({ columnId: true })
   .partial()
   .extend({ cardId: uuid });
+
+export const updateCardDescriptionSchema = z.object({
+  cardId: uuid,
+  document: z.unknown().transform((value, context) => {
+    if (value === null) return null;
+
+    const document = normalizeRichTextDocument(value);
+    if (document) return serializeRichTextDocument(document);
+
+    const emptyDocument =
+      typeof value === "object" &&
+      value !== null &&
+      "type" in value &&
+      value.type === "doc" &&
+      (!("content" in value) ||
+        (Array.isArray(value.content) &&
+          value.content.every(
+            (node) =>
+              typeof node === "object" &&
+              node !== null &&
+              "type" in node &&
+              node.type === "paragraph" &&
+              (!("content" in node) ||
+                (Array.isArray(node.content) && node.content.length === 0)),
+          )));
+
+    if (emptyDocument) {
+      return null;
+    }
+
+    context.addIssue({
+      code: "custom",
+      message: "The description format is invalid.",
+    });
+    return z.NEVER;
+  }),
+});
 
 export const moveCardSchema = z.object({
   cardId: uuid,
@@ -134,8 +185,12 @@ export type CreateColumnInput = z.infer<typeof createColumnSchema>;
 export type RenameColumnInput = z.infer<typeof renameColumnSchema>;
 export type MoveColumnInput = z.infer<typeof moveColumnSchema>;
 export type CreateLabelInput = z.infer<typeof createLabelSchema>;
+export type UpdateLabelInput = z.infer<typeof updateLabelSchema>;
 export type CreateCardInput = z.infer<typeof createCardSchema>;
 export type UpdateCardInput = z.infer<typeof updateCardSchema>;
+export type UpdateCardDescriptionInput = z.input<
+  typeof updateCardDescriptionSchema
+>;
 export type MoveCardInput = z.infer<typeof moveCardSchema>;
 export type CreateCommentInput = z.infer<typeof createCommentSchema>;
 export type CreateChecklistGroupInput = z.infer<

@@ -9,9 +9,11 @@ import {
   entityIdSchema,
   moveCardSchema,
   updateCardSchema,
+  updateCardDescriptionSchema,
   type CreateCardInput,
   type MoveCardInput,
   type UpdateCardInput,
+  type UpdateCardDescriptionInput,
 } from "@/app/lib/kanban/validation";
 import { assertActiveUsers } from "./user-validation";
 
@@ -122,6 +124,26 @@ export async function updateCard(input: UpdateCardInput): Promise<void> {
           : {}),
       },
     });
+  });
+}
+
+export async function updateCardDescription(
+  input: UpdateCardDescriptionInput,
+): Promise<void> {
+  await requireCurrentUser();
+  const data = updateCardDescriptionSchema.parse(input);
+  const card = await db.card.findUnique({
+    where: { id: data.cardId },
+    select: { id: true },
+  });
+
+  if (!card) {
+    throw new NotFoundError("Card");
+  }
+
+  await db.card.update({
+    where: { id: card.id },
+    data: { description: data.document },
   });
 }
 

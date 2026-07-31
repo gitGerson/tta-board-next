@@ -21,8 +21,10 @@ import type {
   RenameColumnInput,
   SetChecklistItemDoneInput,
   UpdateCardInput,
+  UpdateCardDescriptionInput,
   UpdateChecklistGroupInput,
   UpdateChecklistItemInput,
+  UpdateLabelInput,
 } from "@/app/lib/kanban/validation";
 import {
   createBoard,
@@ -32,12 +34,14 @@ import {
   deleteEmptyColumn,
   moveColumn,
   renameColumn,
+  updateLabel,
 } from "@/app/lib/services/board-service";
 import {
   createCard,
   deleteCard,
   moveCard,
   updateCard,
+  updateCardDescription,
 } from "@/app/lib/services/card-service";
 import { createComment } from "@/app/lib/services/comment-service";
 import {
@@ -159,6 +163,14 @@ export async function createLabelAction(
   );
 }
 
+export async function updateLabelAction(
+  input: UpdateLabelInput,
+): Promise<KanbanActionResult> {
+  return runAction({ scope: { kind: "board", boardId: input.boardId } }, () =>
+    updateLabel(input),
+  );
+}
+
 export async function createCardAction(
   input: CreateCardInput,
 ): Promise<KanbanActionResult> {
@@ -173,6 +185,14 @@ export async function updateCardAction(
 ): Promise<KanbanActionResult> {
   return runAction({ scope: { kind: "card", cardId: input.cardId } }, () =>
     updateCard(input),
+  );
+}
+
+export async function updateCardDescriptionAction(
+  input: UpdateCardDescriptionInput,
+): Promise<KanbanActionResult> {
+  return runAction({ scope: { kind: "card", cardId: input.cardId } }, () =>
+    updateCardDescription(input),
   );
 }
 

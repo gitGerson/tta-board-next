@@ -10,6 +10,11 @@ import { NotFoundError } from "@/app/lib/dal/errors";
 import { db } from "@/app/lib/db/client";
 import { isBoardKey } from "@/app/lib/kanban/board-route";
 import { entityIdSchema } from "@/app/lib/kanban/validation";
+import {
+  deserializeRichTextDocument,
+  richTextPlainText,
+  type RichTextDocument,
+} from "@/app/lib/rich-text/content";
 
 export type BoardSummaryDTO = {
   id: string;
@@ -100,9 +105,44 @@ export type CommentDTO = {
 
 export type CardDetailsDTO = CardSummaryDTO & {
   columnId: string;
+  descriptionDocument: RichTextDocument | null;
   comments: CommentDTO[];
   checklistGroups: ChecklistGroupDTO[];
 };
+
+function cardDescriptionDocument(value: string | null): RichTextDocument | null {
+  return value ? deserializeRichTextDocument(value) : null;
+}
+
+function cardDescriptionText(value: string | null): string | null {
+  const document = cardDescriptionDocument(value);
+  return document ? richTextPlainText(document).trim() || null : null;
+}
+
+export async function getCardRoute(
+  cardIdInput: string,
+): Promise<{ id: string; boardRouteKey: string } | null> {
+  await requireCurrentUser();
+  const cardIdResult = entityIdSchema.safeParse(cardIdInput);
+
+  if (!cardIdResult.success) return null;
+
+  const card = await db.card.findUnique({
+    where: { id: cardIdResult.data },
+    select: {
+      id: true,
+      column: {
+        select: {
+          board: { select: { routeKey: true } },
+        },
+      },
+    },
+  });
+
+  return card
+    ? { id: card.id, boardRouteKey: card.column.board.routeKey }
+    : null;
+}
 
 /** Cached because the dashboard layout and its pages both need the list. */
 export const listBoards = cache(async (): Promise<BoardSummaryDTO[]> => {
@@ -288,7 +328,7 @@ async function loadBoard(
         return {
           id: card.id,
           title: card.title,
-          description: card.description,
+          description: cardDescriptionText(card.description),
           position: card.position,
           startAt: card.startAt?.toISOString() ?? null,
           dueAt: card.dueAt?.toISOString() ?? null,
@@ -415,7 +455,8 @@ export async function getCardDetails(
     id: card.id,
     columnId: card.columnId,
     title: card.title,
-    description: card.description,
+    description: cardDescriptionText(card.description),
+    descriptionDocument: cardDescriptionDocument(card.description),
     position: card.position,
     startAt: card.startAt?.toISOString() ?? null,
     dueAt: card.dueAt?.toISOString() ?? null,
