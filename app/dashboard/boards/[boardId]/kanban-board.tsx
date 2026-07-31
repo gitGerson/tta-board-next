@@ -494,6 +494,7 @@ export function KanbanBoard({
     | null
   >(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [remoteUpdateAvailable, setRemoteUpdateAvailable] = useState(false);
   const [actionResult, setActionResult] = useState<KanbanActionResult | null>(
     null,
   );
@@ -541,6 +542,10 @@ export function KanbanBoard({
 
   function onRemoteChange() {
     window.clearTimeout(remoteRefreshTimer.current);
+    if (selectedCard) {
+      setRemoteUpdateAvailable(true);
+      return;
+    }
     // Coalesces the burst a teammate produces while dragging a card around.
     remoteRefreshTimer.current = window.setTimeout(applyRemoteChange, 150);
   }
@@ -574,6 +579,7 @@ export function KanbanBoard({
 
   function closeCard() {
     setCreateCardColumnId(null);
+    setRemoteUpdateAvailable(false);
     if (selectedCard || requestedCardMissing) {
       router.replace(boardPath(board.routeKey), { scroll: false });
     }
@@ -886,6 +892,11 @@ export function KanbanBoard({
           mentionableUsers={mentionableUsers}
           currentUser={currentUser}
           details={selectedCard}
+          remoteUpdateAvailable={remoteUpdateAvailable}
+          onReloadRemote={() => {
+            setRemoteUpdateAvailable(false);
+            router.refresh();
+          }}
           onClose={closeCard}
         />
       )}

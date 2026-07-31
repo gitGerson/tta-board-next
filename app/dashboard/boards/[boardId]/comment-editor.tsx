@@ -21,18 +21,25 @@ import StarterKit from "@tiptap/starter-kit";
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
 } from "react";
 import { uploadCardCommentImageAction } from "@/app/dashboard/boards/actions";
 import {
+  MAX_COMMENT_IMAGES,
   MAX_COMMENT_TEXT_LENGTH,
   normalizeCommentDocument,
   type CommentDocument,
 } from "@/app/lib/comments/content";
 import type { MentionableUserDTO } from "@/app/lib/dal/users";
-import { compressedPastedImageDataUrl } from "@/app/lib/images/pasted-image";
+import {
+  compressedPastedImageDataUrl,
+  imageSources,
+  replaceImageSources,
+  validatePastedImageFile,
+} from "@/app/lib/images/pasted-image";
 import { createMentionSuggestion } from "./mention-suggestion";
 
 const starterKit = StarterKit.configure({
@@ -91,10 +98,12 @@ export function CommentEditor({
   disabled: boolean;
   resetVersion: number;
   users: MentionableUserDTO[];
-  onSubmit: (document: CommentDocument) => void;
+  onSubmit: (document: CommentDocument) => Promise<boolean>;
 }) {
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [pendingImageCount, setPendingImageCount] = useState(0);
+  const pendingImages = useRef(new Map<string, File>());
   const extensions = useMemo(
     () => [
       starterKit,
@@ -137,34 +146,38 @@ export function CommentEditor({
 
         event.preventDefault();
         setImageError(null);
-        setUploadingImage(true);
-        void compressedPastedImageDataUrl(imageFile)
-          .then((dataUrl) =>
-            uploadCardCommentImageAction({ cardId, dataUrl }),
-          )
-          .then((uploadResult) => {
-            if (!uploadResult.ok) {
-              throw new Error(uploadResult.message);
-            }
-            if (!view.dom.isConnected) return;
-            const imageNode = view.state.schema.nodes.image?.create({
-              src: uploadResult.url,
-              alt: imageFile.name || "Pasted image",
-              title: null,
-            });
-            if (!imageNode) return;
-            view.dispatch(
-              view.state.tr.replaceSelectionWith(imageNode).scrollIntoView(),
+        try {
+          validatePastedImageFile(imageFile);
+          if (
+            imageSources(view.state.doc.toJSON()).length >= MAX_COMMENT_IMAGES
+          ) {
+            throw new Error(
+              `A comment can contain up to ${MAX_COMMENT_IMAGES} images.`,
             );
-          })
-          .catch((error: unknown) => {
-            setImageError(
-              error instanceof Error
-                ? error.message
-                : "The image could not be pasted.",
-            );
-          })
-          .finally(() => setUploadingImage(false));
+          }
+
+          const previewUrl = URL.createObjectURL(imageFile);
+          const imageNode = view.state.schema.nodes.image?.create({
+            src: previewUrl,
+            alt: imageFile.name || "Pasted image",
+            title: null,
+          });
+          if (!imageNode) {
+            URL.revokeObjectURL(previewUrl);
+            return true;
+          }
+          pendingImages.current.set(previewUrl, imageFile);
+          setPendingImageCount(pendingImages.current.size);
+          view.dispatch(
+            view.state.tr.replaceSelectionWith(imageNode).scrollIntoView(),
+          );
+        } catch (error: unknown) {
+          setImageError(
+            error instanceof Error
+              ? error.message
+              : "The image could not be pasted.",
+          );
+        }
 
         return true;
       },
@@ -198,15 +211,80 @@ export function CommentEditor({
     }
   }, [editor, resetVersion]);
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    const images = pendingImages.current;
+    return () => {
+      images.forEach((_, previewUrl) => URL.revokeObjectURL(previewUrl));
+      images.clear();
+    };
+  }, []);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editor) return;
 
-    const document = normalizeCommentDocument(editor.getJSON());
-    if (document) onSubmit(document);
+    setImageError(null);
+    setSaving(true);
+    let nextDocument = editor.getJSON();
+    const presentSources = new Set(imageSources(nextDocument));
+
+    for (const [previewUrl] of pendingImages.current) {
+      if (!presentSources.has(previewUrl)) {
+        URL.revokeObjectURL(previewUrl);
+        pendingImages.current.delete(previewUrl);
+      }
+    }
+    setPendingImageCount(pendingImages.current.size);
+
+    try {
+      const sources = imageSources(nextDocument);
+      if (sources.length > MAX_COMMENT_IMAGES) {
+        throw new Error(
+          `A comment can contain up to ${MAX_COMMENT_IMAGES} images.`,
+        );
+      }
+      if (
+        sources.some(
+          (source) =>
+            source.startsWith("blob:") && !pendingImages.current.has(source),
+        )
+      ) {
+        throw new Error("One pasted image is no longer available.");
+      }
+
+      for (const [previewUrl, file] of pendingImages.current) {
+        const dataUrl = await compressedPastedImageDataUrl(file);
+        const result = await uploadCardCommentImageAction({
+          cardId,
+          dataUrl,
+        });
+        if (!result.ok) throw new Error(result.message);
+
+        nextDocument = replaceImageSources(
+          nextDocument,
+          new Map([[previewUrl, result.url]]),
+        );
+        editor.commands.setContent(nextDocument);
+        URL.revokeObjectURL(previewUrl);
+        pendingImages.current.delete(previewUrl);
+        setPendingImageCount(pendingImages.current.size);
+      }
+
+      const document = normalizeCommentDocument(nextDocument);
+      if (!document) throw new Error("Write a comment before submitting.");
+      await onSubmit(document);
+    } catch (error: unknown) {
+      setImageError(
+        error instanceof Error
+          ? error.message
+          : "The comment could not be sent.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
-  const unavailable = disabled || uploadingImage || !editor;
+  const unavailable = disabled || saving || !editor;
 
   return (
     <form onSubmit={submit}>
@@ -321,11 +399,19 @@ export function CommentEditor({
         </div>
       </div>
 
-      {uploadingImage && (
-        <p className="mt-1 text-xs text-slate-500">Uploading image…</p>
+      {saving && pendingImageCount > 0 && (
+        <p className="mt-1 text-xs text-slate-500">
+          Uploading images and sending…
+        </p>
       )}
       {imageError && (
         <p className="mt-1 text-xs font-medium text-red-600">{imageError}</p>
+      )}
+      {!saving && pendingImageCount > 0 && !imageError && (
+        <p className="mt-1 text-xs text-slate-500">
+          {pendingImageCount} pasted image
+          {pendingImageCount === 1 ? "" : "s"} will upload when sent.
+        </p>
       )}
 
       <p

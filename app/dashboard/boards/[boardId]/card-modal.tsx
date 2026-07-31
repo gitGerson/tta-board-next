@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  RefreshCw,
   Share2,
   Trash2,
   UserRound,
@@ -202,6 +203,8 @@ export function CardModal({
   createColumnId,
   details,
   currentUser,
+  remoteUpdateAvailable = false,
+  onReloadRemote,
   onClose,
 }: {
   boardId: string;
@@ -212,6 +215,8 @@ export function CardModal({
   createColumnId?: string;
   details?: CardDetailsDTO;
   currentUser: { id: string; name: string };
+  remoteUpdateAvailable?: boolean;
+  onReloadRemote?: () => void;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -312,21 +317,22 @@ export function CardModal({
     });
   }
 
-  function saveDescription(document: RichTextDocument | null) {
-    if (!details) return;
+  async function saveDescription(
+    document: RichTextDocument | null,
+  ): Promise<boolean> {
+    if (!details) return false;
 
     setResult(null);
-    startTransition(async () => {
-      const actionResult = await updateCardDescriptionAction({
-        cardId: details.id,
-        document,
-      });
-      setResult(actionResult);
-      if (actionResult.ok) {
-        setEditingField(null);
-        router.refresh();
-      }
+    const actionResult = await updateCardDescriptionAction({
+      cardId: details.id,
+      document,
     });
+    setResult(actionResult);
+    if (actionResult.ok) {
+      setEditingField(null);
+      router.refresh();
+    }
+    return actionResult.ok;
   }
 
   function editField(field: EditableCardField) {
@@ -356,21 +362,22 @@ export function CardModal({
     });
   }
 
-  function submitComment(content: CommentDocument) {
-    if (!details) return;
+  async function submitComment(
+    content: CommentDocument,
+  ): Promise<boolean> {
+    if (!details) return false;
     setResult(null);
 
-    startTransition(async () => {
-      const actionResult = await createCommentAction({
-        cardId: details.id,
-        content,
-      });
-      setResult(actionResult);
-      if (actionResult.ok) {
-        setCommentResetVersion((version) => version + 1);
-        router.refresh();
-      }
+    const actionResult = await createCommentAction({
+      cardId: details.id,
+      content,
     });
+    setResult(actionResult);
+    if (actionResult.ok) {
+      setCommentResetVersion((version) => version + 1);
+      router.refresh();
+    }
+    return actionResult.ok;
   }
 
   function deleteCard() {
@@ -522,6 +529,22 @@ export function CardModal({
         >
           {details ? (
             <section className="p-5 sm:p-6">
+              {remoteUpdateAvailable && (
+                <div
+                  className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+                  role="status"
+                >
+                  <span>New updates are available for this board.</span>
+                  <button
+                    type="button"
+                    onClick={onReloadRemote}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md bg-white px-2 py-1 font-bold text-amber-800 shadow-sm hover:bg-amber-100"
+                  >
+                    <RefreshCw size={12} aria-hidden="true" />
+                    Reload card
+                  </button>
+                </div>
+              )}
               <div className="pb-3">
                 {editingField === "title" ? (
                   <form

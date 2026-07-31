@@ -17,14 +17,20 @@ import {
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
 import StarterKit from "@tiptap/starter-kit";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { uploadCardDescriptionImageAction } from "@/app/dashboard/boards/actions";
 import {
+  MAX_RICH_TEXT_IMAGES,
   MAX_RICH_TEXT_LENGTH,
   normalizeRichTextDocument,
   type RichTextDocument,
 } from "@/app/lib/rich-text/content";
-import { compressedPastedImageDataUrl } from "@/app/lib/images/pasted-image";
+import {
+  compressedPastedImageDataUrl,
+  imageSources,
+  replaceImageSources,
+  validatePastedImageFile,
+} from "@/app/lib/images/pasted-image";
 
 const starterKit = StarterKit.configure({
   heading: { levels: [2, 3] },
@@ -32,7 +38,7 @@ const starterKit = StarterKit.configure({
   link: false,
 });
 const imageExtension = Image.configure({
-  allowBase64: true,
+  allowBase64: false,
   HTMLAttributes: {
     class:
       "my-2 max-h-80 max-w-full rounded-lg border border-slate-200 object-contain",
@@ -81,9 +87,12 @@ export function CardDescriptionEditor({
   initialDocument: RichTextDocument | null;
   disabled: boolean;
   onCancel: () => void;
-  onSave: (document: RichTextDocument | null) => void;
+  onSave: (document: RichTextDocument | null) => Promise<boolean>;
 }) {
   const [imageError, setImageError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [pendingImageCount, setPendingImageCount] = useState(0);
+  const pendingImages = useRef(new Map<string, File>());
   const editor = useEditor({
     extensions: [starterKit, imageExtension],
     content: initialDocument ?? {
@@ -105,37 +114,51 @@ export function CardDescriptionEditor({
 
         event.preventDefault();
         setImageError(null);
-        void compressedPastedImageDataUrl(imageFile)
-          .then((dataUrl) =>
-            uploadCardDescriptionImageAction({ cardId, dataUrl }),
-          )
-          .then((uploadResult) => {
-            if (!uploadResult.ok) {
-              throw new Error(uploadResult.message);
-            }
-            if (!view.dom.isConnected) return;
-            const imageNode = view.state.schema.nodes.image?.create({
-              src: uploadResult.url,
-              alt: imageFile.name || "Pasted image",
-              title: null,
-            });
-            if (!imageNode) return;
-            view.dispatch(
-              view.state.tr.replaceSelectionWith(imageNode).scrollIntoView(),
+        try {
+          validatePastedImageFile(imageFile);
+          if (
+            imageSources(view.state.doc.toJSON()).length >=
+            MAX_RICH_TEXT_IMAGES
+          ) {
+            throw new Error(
+              `A description can contain up to ${MAX_RICH_TEXT_IMAGES} images.`,
             );
-          })
-          .catch((error: unknown) => {
-            setImageError(
-              error instanceof Error
-                ? error.message
-                : "The image could not be pasted.",
-            );
+          }
+
+          const previewUrl = URL.createObjectURL(imageFile);
+          const imageNode = view.state.schema.nodes.image?.create({
+            src: previewUrl,
+            alt: imageFile.name || "Pasted image",
+            title: null,
           });
+          if (!imageNode) {
+            URL.revokeObjectURL(previewUrl);
+            return true;
+          }
+          pendingImages.current.set(previewUrl, imageFile);
+          setPendingImageCount(pendingImages.current.size);
+          view.dispatch(
+            view.state.tr.replaceSelectionWith(imageNode).scrollIntoView(),
+          );
+        } catch (error: unknown) {
+          setImageError(
+            error instanceof Error
+              ? error.message
+              : "The image could not be pasted.",
+          );
+        }
 
         return true;
       },
     },
   });
+  useEffect(() => {
+    const images = pendingImages.current;
+    return () => {
+      images.forEach((_, previewUrl) => URL.revokeObjectURL(previewUrl));
+      images.clear();
+    };
+  }, []);
   const state = useEditorState({
     editor,
     selector: ({ editor: current }) => {
@@ -156,12 +179,76 @@ export function CardDescriptionEditor({
       };
     },
   });
-  const unavailable = disabled || !editor;
+  const unavailable = disabled || saving || !editor;
   const tooLong = (state?.characters || 0) > MAX_RICH_TEXT_LENGTH;
 
-  function save() {
+  async function save() {
     if (!editor || tooLong) return;
-    onSave(normalizeRichTextDocument(editor.getJSON()));
+
+    setImageError(null);
+    setSaving(true);
+    let nextDocument = editor.getJSON();
+    const presentSources = new Set(imageSources(nextDocument));
+
+    for (const [previewUrl] of pendingImages.current) {
+      if (!presentSources.has(previewUrl)) {
+        URL.revokeObjectURL(previewUrl);
+        pendingImages.current.delete(previewUrl);
+      }
+    }
+    setPendingImageCount(pendingImages.current.size);
+
+    try {
+      const sources = imageSources(nextDocument);
+      if (sources.length > MAX_RICH_TEXT_IMAGES) {
+        throw new Error(
+          `A description can contain up to ${MAX_RICH_TEXT_IMAGES} images.`,
+        );
+      }
+      if (
+        sources.some(
+          (source) =>
+            source.startsWith("blob:") && !pendingImages.current.has(source),
+        )
+      ) {
+        throw new Error("One pasted image is no longer available.");
+      }
+
+      for (const [previewUrl, file] of pendingImages.current) {
+        const dataUrl = await compressedPastedImageDataUrl(file);
+        const result = await uploadCardDescriptionImageAction({
+          cardId,
+          dataUrl,
+        });
+        if (!result.ok) throw new Error(result.message);
+
+        nextDocument = replaceImageSources(
+          nextDocument,
+          new Map([[previewUrl, result.url]]),
+        );
+        editor.commands.setContent(nextDocument);
+        URL.revokeObjectURL(previewUrl);
+        pendingImages.current.delete(previewUrl);
+        setPendingImageCount(pendingImages.current.size);
+      }
+
+      const document = normalizeRichTextDocument(nextDocument);
+      if (
+        !document &&
+        (editor.getText().trim() || imageSources(nextDocument).length > 0)
+      ) {
+        throw new Error("The description contains unsupported content.");
+      }
+      await onSave(document);
+    } catch (error: unknown) {
+      setImageError(
+        error instanceof Error
+          ? error.message
+          : "The description could not be saved.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -265,6 +352,12 @@ export function CardDescriptionEditor({
           {imageError}
         </p>
       )}
+      {pendingImageCount > 0 && !imageError && (
+        <p className="mt-1 text-[11px] text-slate-500">
+          {pendingImageCount} pasted image
+          {pendingImageCount === 1 ? "" : "s"} will upload when saved.
+        </p>
+      )}
       <div className="mt-1.5 flex items-center justify-between">
         <span
           className={`text-[10px] ${
@@ -277,7 +370,7 @@ export function CardDescriptionEditor({
           <button
             type="button"
             onClick={onCancel}
-            disabled={disabled}
+            disabled={disabled || saving}
             className="grid size-8 place-items-center text-slate-500 hover:bg-slate-50 disabled:opacity-60"
             aria-label="Cancel editing description"
             title="Cancel"
@@ -289,8 +382,8 @@ export function CardDescriptionEditor({
             onClick={save}
             disabled={unavailable || tooLong}
             className="grid size-8 place-items-center border-l border-[#5c8f32] bg-[#689f38] text-white hover:bg-[#557f2f] disabled:opacity-50"
-            aria-label={disabled ? "Saving description" : "Save description"}
-            title={disabled ? "Saving…" : "Save"}
+            aria-label={saving ? "Saving description" : "Save description"}
+            title={saving ? "Uploading and saving…" : "Save"}
           >
             <Check size={13} aria-hidden="true" />
           </button>
