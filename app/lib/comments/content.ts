@@ -1,4 +1,5 @@
 export const MAX_COMMENT_TEXT_LENGTH = 5_000;
+export const MAX_COMMENT_IMAGES = 4;
 
 const allowedNodeTypes = new Set([
   "doc",
@@ -11,6 +12,7 @@ const allowedNodeTypes = new Set([
   "listItem",
   "blockquote",
   "codeBlock",
+  "image",
 ]);
 const allowedMarkTypes = new Set([
   "bold",
@@ -36,9 +38,16 @@ export type CommentNode = {
     | "orderedList"
     | "listItem"
     | "blockquote"
-    | "codeBlock";
+    | "codeBlock"
+    | "image";
   text?: string;
-  attrs?: { id: string; label: string };
+  attrs?: {
+    id?: string;
+    label?: string;
+    src?: string;
+    alt?: string | null;
+    title?: string | null;
+  };
   marks?: CommentMark[];
   content?: CommentNode[];
 };
@@ -66,7 +75,7 @@ function normalizeMark(value: unknown): CommentMark | null {
 function normalizeNode(
   value: unknown,
   depth: number,
-  counter: { nodes: number; text: number },
+  counter: { nodes: number; text: number; images: number },
 ): CommentNode | null {
   if (
     depth > 10 ||
@@ -124,6 +133,38 @@ function normalizeNode(
     };
   }
 
+  if (value.type === "image") {
+    const attrs = isRecord(value.attrs) ? value.attrs : null;
+    if (
+      !attrs ||
+      typeof attrs.src !== "string" ||
+      attrs.src.length > 2_048
+    ) {
+      return null;
+    }
+
+    try {
+      if (new URL(attrs.src).protocol !== "https:") return null;
+    } catch {
+      return null;
+    }
+
+    counter.images += 1;
+    if (counter.images > MAX_COMMENT_IMAGES) return null;
+
+    const alt =
+      typeof attrs.alt === "string" ? attrs.alt.trim().slice(0, 200) : null;
+
+    return {
+      type: "image",
+      attrs: {
+        src: attrs.src,
+        alt: alt || null,
+        title: null,
+      },
+    };
+  }
+
   const content = Array.isArray(value.content)
     ? value.content.map((node) => normalizeNode(node, depth + 1, counter))
     : [];
@@ -140,7 +181,7 @@ export function normalizeCommentDocument(
 ): CommentDocument | null {
   if (!isRecord(value) || value.type !== "doc") return null;
 
-  const counter = { nodes: 0, text: 0 };
+  const counter = { nodes: 0, text: 0, images: 0 };
   const content = Array.isArray(value.content)
     ? value.content.map((node) => normalizeNode(node, 1, counter))
     : [];
@@ -152,7 +193,7 @@ export function normalizeCommentDocument(
     ...(content.length > 0 ? { content: content as CommentNode[] } : {}),
   };
 
-  return commentText(document).trim() ? document : null;
+  return commentText(document).trim() || counter.images > 0 ? document : null;
 }
 
 export function commentText(document: CommentDocument): string {
@@ -160,10 +201,25 @@ export function commentText(document: CommentDocument): string {
     if (node.type === "text") return node.text || "";
     if (node.type === "hardBreak") return "\n";
     if (node.type === "mention") return `@${node.attrs?.label || ""}`;
+    if (node.type === "image") return node.attrs?.alt || "";
     return (node.content || []).map(nodeText).join("");
   }
 
   return (document.content || []).map(nodeText).join("\n");
+}
+
+export function commentImageSources(document: CommentDocument): string[] {
+  const sources: string[] = [];
+
+  function visit(node: CommentNode): void {
+    if (node.type === "image" && node.attrs?.src) {
+      sources.push(node.attrs.src);
+    }
+    node.content?.forEach(visit);
+  }
+
+  document.content?.forEach(visit);
+  return sources;
 }
 
 export function mentionedUserIds(document: CommentDocument): string[] {

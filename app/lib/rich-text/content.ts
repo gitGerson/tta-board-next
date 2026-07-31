@@ -25,6 +25,7 @@ const allowedMarkTypes = new Set([
 ]);
 const imageDataUrlPattern =
   /^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/]+={0,2}$/i;
+const httpsImageUrlPattern = /^https:\/\/[^\s]+$/i;
 
 export type RichTextMark = {
   type: "bold" | "italic" | "underline" | "strike" | "code";
@@ -115,8 +116,9 @@ function normalizeNode(
     const src = attrs?.src;
     if (
       typeof src !== "string" ||
-      src.length > MAX_INLINE_IMAGE_DATA_URL_LENGTH ||
-      !imageDataUrlPattern.test(src)
+      (imageDataUrlPattern.test(src)
+        ? src.length > MAX_INLINE_IMAGE_DATA_URL_LENGTH
+        : src.length > 2_048 || !httpsImageUrlPattern.test(src))
     ) {
       return null;
     }
@@ -230,4 +232,18 @@ export function richTextPlainText(document: RichTextDocument): string {
   }
 
   return (document.content || []).map(nodeText).join("\n");
+}
+
+export function richTextImageSources(document: RichTextDocument): string[] {
+  const sources: string[] = [];
+
+  function visit(node: RichTextNode): void {
+    if (node.type === "image" && node.attrs?.src) {
+      sources.push(node.attrs.src);
+    }
+    node.content?.forEach(visit);
+  }
+
+  document.content?.forEach(visit);
+  return sources;
 }

@@ -600,6 +600,7 @@ export function CardModal({
                 </div>
                 {editingField === "description" ? (
                   <CardDescriptionEditor
+                    cardId={details.id}
                     initialDocument={details.descriptionDocument}
                     disabled={isPending}
                     onCancel={() => setEditingField(null)}
@@ -890,6 +891,7 @@ export function CardModal({
               aria-label={`Add a comment as ${currentUser.name}`}
             >
               <CommentEditor
+                cardId={details!.id}
                 disabled={isPending}
                 users={mentionableUsers}
                 resetVersion={commentResetVersion}

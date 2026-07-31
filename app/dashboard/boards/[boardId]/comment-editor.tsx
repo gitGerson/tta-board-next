@@ -15,26 +15,37 @@ import {
 } from "lucide-react";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import Image from "@tiptap/extension-image";
 import Mention from "@tiptap/extension-mention";
 import StarterKit from "@tiptap/starter-kit";
 import {
   useEffect,
   useMemo,
+  useState,
   type FormEvent,
   type ReactNode,
 } from "react";
+import { uploadCardCommentImageAction } from "@/app/dashboard/boards/actions";
 import {
   MAX_COMMENT_TEXT_LENGTH,
   normalizeCommentDocument,
   type CommentDocument,
 } from "@/app/lib/comments/content";
 import type { MentionableUserDTO } from "@/app/lib/dal/users";
+import { compressedPastedImageDataUrl } from "@/app/lib/images/pasted-image";
 import { createMentionSuggestion } from "./mention-suggestion";
 
 const starterKit = StarterKit.configure({
   heading: false,
   horizontalRule: false,
   link: false,
+});
+const imageExtension = Image.configure({
+  allowBase64: false,
+  HTMLAttributes: {
+    class:
+      "my-2 max-h-64 max-w-full rounded-lg border border-slate-200 object-contain",
+  },
 });
 
 function MenuButton({
@@ -70,19 +81,24 @@ function MenuButton({
 }
 
 export function CommentEditor({
+  cardId,
   disabled,
   resetVersion,
   users,
   onSubmit,
 }: {
+  cardId: string;
   disabled: boolean;
   resetVersion: number;
   users: MentionableUserDTO[];
   onSubmit: (document: CommentDocument) => void;
 }) {
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
   const extensions = useMemo(
     () => [
       starterKit,
+      imageExtension,
       Mention.configure({
         HTMLAttributes: {
           class:
@@ -112,6 +128,45 @@ export function CommentEditor({
         class:
           "tiptap thin-scrollbar min-h-32 max-h-52 overflow-y-auto px-3 pb-14 pt-2.5 text-sm outline-none",
         "aria-label": "Comment",
+      },
+      handlePaste(view, event) {
+        const imageFile = Array.from(event.clipboardData?.files || []).find(
+          (file) => file.type.startsWith("image/"),
+        );
+        if (!imageFile) return false;
+
+        event.preventDefault();
+        setImageError(null);
+        setUploadingImage(true);
+        void compressedPastedImageDataUrl(imageFile)
+          .then((dataUrl) =>
+            uploadCardCommentImageAction({ cardId, dataUrl }),
+          )
+          .then((uploadResult) => {
+            if (!uploadResult.ok) {
+              throw new Error(uploadResult.message);
+            }
+            if (!view.dom.isConnected) return;
+            const imageNode = view.state.schema.nodes.image?.create({
+              src: uploadResult.url,
+              alt: imageFile.name || "Pasted image",
+              title: null,
+            });
+            if (!imageNode) return;
+            view.dispatch(
+              view.state.tr.replaceSelectionWith(imageNode).scrollIntoView(),
+            );
+          })
+          .catch((error: unknown) => {
+            setImageError(
+              error instanceof Error
+                ? error.message
+                : "The image could not be pasted.",
+            );
+          })
+          .finally(() => setUploadingImage(false));
+
+        return true;
       },
     },
   });
@@ -151,7 +206,7 @@ export function CommentEditor({
     if (document) onSubmit(document);
   }
 
-  const unavailable = disabled || !editor;
+  const unavailable = disabled || uploadingImage || !editor;
 
   return (
     <form onSubmit={submit}>
@@ -265,6 +320,13 @@ export function CommentEditor({
           </button>
         </div>
       </div>
+
+      {uploadingImage && (
+        <p className="mt-1 text-xs text-slate-500">Uploading image…</p>
+      )}
+      {imageError && (
+        <p className="mt-1 text-xs font-medium text-red-600">{imageError}</p>
+      )}
 
       <p
         className={`mt-1 text-right text-[11px] ${

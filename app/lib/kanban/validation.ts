@@ -5,7 +5,6 @@ import {
 } from "@/app/lib/comments/content";
 import {
   normalizeRichTextDocument,
-  serializeRichTextDocument,
 } from "@/app/lib/rich-text/content";
 
 const uuid = z.string().uuid();
@@ -79,7 +78,7 @@ export const updateCardDescriptionSchema = z.object({
     if (value === null) return null;
 
     const document = normalizeRichTextDocument(value);
-    if (document) return serializeRichTextDocument(document);
+    if (document) return document;
 
     const emptyDocument =
       typeof value === "object" &&

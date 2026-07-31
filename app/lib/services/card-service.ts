@@ -15,6 +15,11 @@ import {
   type UpdateCardInput,
   type UpdateCardDescriptionInput,
 } from "@/app/lib/kanban/validation";
+import {
+  richTextImageSources,
+  serializeRichTextDocument,
+} from "@/app/lib/rich-text/content";
+import { isStoredCardImageUrl } from "@/app/lib/storage/card-images";
 import { assertActiveUsers } from "./user-validation";
 
 async function validateRelations(
@@ -141,9 +146,24 @@ export async function updateCardDescription(
     throw new NotFoundError("Card");
   }
 
+  const description = data.document
+    ? serializeRichTextDocument(data.document)
+    : null;
+
+  if (
+    data.document &&
+    richTextImageSources(data.document).some(
+      (source) =>
+        !source.startsWith("data:image/") &&
+        !isStoredCardImageUrl(card.id, source),
+    )
+  ) {
+    throw new ConflictError("The description contains an untrusted image URL.");
+  }
+
   await db.card.update({
     where: { id: card.id },
-    data: { description: data.document },
+    data: { description },
   });
 }
 

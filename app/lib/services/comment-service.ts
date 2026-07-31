@@ -4,9 +4,11 @@ import { requireCurrentUser } from "@/app/lib/dal/auth";
 import { ConflictError, NotFoundError } from "@/app/lib/dal/errors";
 import { db } from "@/app/lib/db/client";
 import {
+  commentImageSources,
   mentionedUserIds,
   serializeCommentDocument,
 } from "@/app/lib/comments/content";
+import { isStoredCardImageUrl } from "@/app/lib/storage/card-images";
 import {
   createCommentSchema,
   type CreateCommentInput,
@@ -29,6 +31,14 @@ export async function createComment(input: CreateCommentInput) {
 
   if (!card) {
     throw new NotFoundError("Card");
+  }
+
+  if (
+    commentImageSources(data.content).some(
+      (source) => !isStoredCardImageUrl(card.id, source),
+    )
+  ) {
+    throw new ConflictError("The comment contains an untrusted image URL.");
   }
 
   if (mentionedUsers.length !== mentionIds.length) {

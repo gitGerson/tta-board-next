@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  commentImageSources,
   commentText,
   deserializeCommentDocument,
   mentionedUserIds,
@@ -60,6 +61,26 @@ describe("comment content", () => {
     expect(commentText(document!)).toBe("@Jane Doe");
     expect(mentionedUserIds(document!)).toEqual([
       "10000000-0000-4000-8000-000000000001",
+    ]);
+  });
+
+  it("accepts trusted-shape HTTPS images and supports image-only comments", () => {
+    const document = normalizeCommentDocument({
+      type: "doc",
+      content: [
+        {
+          type: "image",
+          attrs: {
+            src: "https://cdn.example.test/cards/card-id/comments/image.webp",
+            alt: "Pasted screenshot",
+          },
+        },
+      ],
+    });
+
+    expect(document).not.toBeNull();
+    expect(commentImageSources(document!)).toEqual([
+      "https://cdn.example.test/cards/card-id/comments/image.webp",
     ]);
   });
 

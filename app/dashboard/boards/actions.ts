@@ -56,6 +56,10 @@ import {
   updateChecklistItem,
 } from "@/app/lib/services/checklist-service";
 import {
+  uploadCardCommentImage,
+  uploadCardDescriptionImage,
+} from "@/app/lib/storage/card-images";
+import {
   notifyChanged,
   resolveBoardId,
   type MutationScope,
@@ -64,6 +68,10 @@ import {
 export type KanbanActionResult =
   | { ok: true; id?: string; routeKey?: string }
   | { ok: false; message: string; fieldErrors?: Record<string, string[]> };
+
+export type CardImageUploadResult =
+  | { ok: true; url: string }
+  | { ok: false; message: string };
 
 type Notification = {
   scope: MutationScope;
@@ -194,6 +202,34 @@ export async function updateCardDescriptionAction(
   return runAction({ scope: { kind: "card", cardId: input.cardId } }, () =>
     updateCardDescription(input),
   );
+}
+
+export async function uploadCardDescriptionImageAction(input: {
+  cardId: string;
+  dataUrl: string;
+}): Promise<CardImageUploadResult> {
+  try {
+    return {
+      ok: true,
+      url: await uploadCardDescriptionImage(input),
+    };
+  } catch {
+    return { ok: false, message: "The image could not be uploaded." };
+  }
+}
+
+export async function uploadCardCommentImageAction(input: {
+  cardId: string;
+  dataUrl: string;
+}): Promise<CardImageUploadResult> {
+  try {
+    return {
+      ok: true,
+      url: await uploadCardCommentImage(input),
+    };
+  } catch {
+    return { ok: false, message: "The image could not be uploaded." };
+  }
 }
 
 export async function moveCardAction(

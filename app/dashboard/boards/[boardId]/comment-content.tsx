@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- validated CDN images have no stable intrinsic dimensions */
 import { Fragment, type ReactNode } from "react";
 import type {
   CommentDocument,
@@ -51,6 +52,15 @@ function renderNode(node: CommentNode): ReactNode {
         >
           @{node.attrs?.label}
         </span>
+      );
+    case "image":
+      return (
+        <img
+          src={node.attrs?.src}
+          alt={node.attrs?.alt || "Comment attachment"}
+          className="my-2 max-h-64 max-w-full rounded-lg border border-slate-200 object-contain"
+          loading="lazy"
+        />
       );
     case "paragraph":
       return <p className="min-h-5">{renderChildren(node)}</p>;
