@@ -43,6 +43,7 @@ import type {
 } from "@/app/lib/dal/users";
 import { cardPath } from "@/app/lib/kanban/card-route";
 import type { RichTextDocument } from "@/app/lib/rich-text/content";
+import type { PublishedFormOptionDTO } from "@/app/lib/forms/types";
 import { Modal } from "@/app/dashboard/_components/modal";
 import { CardChecklists } from "./card-checklists";
 import { CardLabelEditor } from "./card-label-editor";
@@ -206,6 +207,7 @@ export function CardModal({
   remoteUpdateAvailable = false,
   onReloadRemote,
   onClose,
+  publishedForms,
 }: {
   boardId: string;
   columns: BoardColumnDTO[];
@@ -218,6 +220,7 @@ export function CardModal({
   remoteUpdateAvailable?: boolean;
   onReloadRemote?: () => void;
   onClose: () => void;
+  publishedForms: PublishedFormOptionDTO[];
 }) {
   const router = useRouter();
   const editing = Boolean(details);
@@ -835,6 +838,8 @@ export function CardModal({
                 cardId={details.id}
                 groups={details.checklistGroups}
                 users={cardMembers}
+                publishedForms={publishedForms}
+                currentUserId={currentUser.id}
                 onError={setResult}
               />
             </div>

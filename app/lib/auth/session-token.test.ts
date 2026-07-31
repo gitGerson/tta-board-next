@@ -15,13 +15,12 @@ const user = {
   email: "jane@example.com",
 };
 const secret = "a-test-secret-that-is-longer-than-32-characters";
-const now = new Date("2026-07-30T00:00:00.000Z");
-
 describe("session tokens", () => {
   it.each([
     [false, BROWSER_SESSION_SECONDS],
     [true, REMEMBERED_SESSION_SECONDS],
   ])("uses the expected lifetime for remember=%s", async (remember, seconds) => {
+    const now = new Date();
     const { token, expiresAt } = await signSessionToken(
       user,
       remember,

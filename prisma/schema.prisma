@@ -8,22 +8,24 @@ datasource db {
 }
 
 model User {
-  id                      String                  @id @default(uuid()) @db.Uuid
-  ldapGuid                String                  @unique @map("ldap_guid")
-  username                String                  @unique
-  displayName             String                  @map("display_name")
+  id                      String                    @id @default(uuid()) @db.Uuid
+  ldapGuid                String                    @unique @map("ldap_guid")
+  username                String                    @unique
+  displayName             String                    @map("display_name")
   email                   String
-  isActive                Boolean                 @default(true) @map("is_active")
-  lastLoginAt             DateTime                @map("last_login_at") @db.Timestamptz(3)
-  createdAt               DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt               DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
-  boards                  Board[]                 @relation("BoardCreator")
-  assignedCards           Card[]                  @relation("CardAssignee")
-  createdCards            Card[]                  @relation("CardCreator")
+  isActive                Boolean                   @default(true) @map("is_active")
+  lastLoginAt             DateTime                  @map("last_login_at") @db.Timestamptz(3)
+  createdAt               DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  boards                  Board[]                   @relation("BoardCreator")
+  assignedCards           Card[]                    @relation("CardAssignee")
+  createdCards            Card[]                    @relation("CardCreator")
   comments                Comment[]
-  checklistGroupsAsPic    ChecklistGroup[]        @relation("ChecklistGroupPic")
-  completedChecklistItems ChecklistItem[]         @relation("ChecklistItemCompleter")
+  checklistGroupsAsPic    ChecklistGroup[]          @relation("ChecklistGroupPic")
+  completedChecklistItems ChecklistItem[]           @relation("ChecklistItemCompleter")
   checklistAssignments    ChecklistItemAssignee[]
+  checklistItemsAsPic     ChecklistItem[]           @relation("ChecklistItemPic")
+  formSubmissions         ChecklistFormSubmission[]
   cardMemberships         CardMember[]
 
   @@map("users")
@@ -40,6 +42,7 @@ model Board {
   createdBy   User          @relation("BoardCreator", fields: [createdById], references: [id], onDelete: Restrict)
   columns     BoardColumn[]
   labels      Label[]
+  forms       Form[]
 
   @@index([createdById])
   @@map("boards")
@@ -120,24 +123,31 @@ model ChecklistGroup {
 }
 
 model ChecklistItem {
-  id            String                  @id @default(uuid()) @db.Uuid
-  groupId       String                  @map("group_id") @db.Uuid
-  title         String
-  description   String?
-  position      Int
-  dueAt         DateTime?               @map("due_at") @db.Timestamptz(3)
-  isDone        Boolean                 @default(false) @map("is_done")
-  completedAt   DateTime?               @map("completed_at") @db.Timestamptz(3)
-  completedById String?                 @map("completed_by_id") @db.Uuid
-  createdAt     DateTime                @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime                @updatedAt @map("updated_at") @db.Timestamptz(3)
-  group         ChecklistGroup          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  completedBy   User?                   @relation("ChecklistItemCompleter", fields: [completedById], references: [id], onDelete: SetNull)
-  assignees     ChecklistItemAssignee[]
+  id              String                    @id @default(uuid()) @db.Uuid
+  groupId         String                    @map("group_id") @db.Uuid
+  title           String
+  description     String?
+  position        Int
+  dueAt           DateTime?                 @map("due_at") @db.Timestamptz(3)
+  isDone          Boolean                   @default(false) @map("is_done")
+  completedAt     DateTime?                 @map("completed_at") @db.Timestamptz(3)
+  completedById   String?                   @map("completed_by_id") @db.Uuid
+  picId           String?                   @map("pic_id") @db.Uuid
+  formVersionId   String?                   @map("form_version_id") @db.Uuid
+  createdAt       DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  group           ChecklistGroup            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  completedBy     User?                     @relation("ChecklistItemCompleter", fields: [completedById], references: [id], onDelete: SetNull)
+  pic             User?                     @relation("ChecklistItemPic", fields: [picId], references: [id], onDelete: SetNull)
+  formVersion     FormVersion?              @relation(fields: [formVersionId], references: [id], onDelete: SetNull)
+  formSubmissions ChecklistFormSubmission[]
+  assignees       ChecklistItemAssignee[]
 
   @@index([groupId, position])
   @@index([isDone])
   @@index([completedById])
+  @@index([picId])
+  @@index([formVersionId])
   @@map("checklist_items")
 }
 
@@ -150,6 +160,122 @@ model ChecklistItemAssignee {
   @@id([itemId, userId])
   @@index([userId])
   @@map("checklist_item_assignees")
+}
+
+enum FormVersionStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum FormFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DATE
+  SELECT
+  CHECKBOX
+}
+
+model Form {
+  id         String        @id @default(uuid()) @db.Uuid
+  boardId    String        @map("board_id") @db.Uuid
+  name       String
+  nameKey    String        @map("name_key")
+  archivedAt DateTime?     @map("archived_at") @db.Timestamptz(3)
+  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  board      Board         @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  versions   FormVersion[]
+
+  @@unique([boardId, nameKey])
+  @@index([boardId, archivedAt])
+  @@map("forms")
+}
+
+model FormVersion {
+  id             String                    @id @default(uuid()) @db.Uuid
+  formId         String                    @map("form_id") @db.Uuid
+  version        Int
+  status         FormVersionStatus
+  name           String
+  description    String?
+  publishedAt    DateTime?                 @map("published_at") @db.Timestamptz(3)
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  form           Form                      @relation(fields: [formId], references: [id], onDelete: Cascade)
+  sections       FormSection[]
+  fields         FormField[]
+  checklistItems ChecklistItem[]
+  submissions    ChecklistFormSubmission[]
+
+  @@unique([formId, version])
+  @@index([formId, status, version])
+  @@map("form_versions")
+}
+
+model FormSection {
+  id            String      @id @default(uuid()) @db.Uuid
+  formVersionId String      @map("form_version_id") @db.Uuid
+  title         String
+  description   String?
+  position      Int
+  formVersion   FormVersion @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
+  fields        FormField[]
+
+  @@index([formVersionId, position])
+  @@map("form_sections")
+}
+
+model FormField {
+  id            String               @id @default(uuid()) @db.Uuid
+  formVersionId String               @map("form_version_id") @db.Uuid
+  sectionId     String?              @map("section_id") @db.Uuid
+  fieldKey      String               @map("field_key") @db.Uuid
+  label         String
+  description   String?
+  type          FormFieldType
+  options       Json?
+  isRequired    Boolean              @default(false) @map("is_required")
+  position      Int
+  formVersion   FormVersion          @relation(fields: [formVersionId], references: [id], onDelete: Cascade)
+  section       FormSection?         @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  values        ChecklistFormValue[]
+
+  @@unique([formVersionId, fieldKey])
+  @@index([formVersionId, position])
+  @@index([sectionId, position])
+  @@map("form_fields")
+}
+
+model ChecklistFormSubmission {
+  id              String               @id @default(uuid()) @db.Uuid
+  checklistItemId String               @map("checklist_item_id") @db.Uuid
+  formVersionId   String               @map("form_version_id") @db.Uuid
+  revision        Int
+  submittedById   String               @map("submitted_by_id") @db.Uuid
+  submittedAt     DateTime             @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  checklistItem   ChecklistItem        @relation(fields: [checklistItemId], references: [id], onDelete: Cascade)
+  formVersion     FormVersion          @relation(fields: [formVersionId], references: [id], onDelete: Restrict)
+  submittedBy     User                 @relation(fields: [submittedById], references: [id], onDelete: Restrict)
+  values          ChecklistFormValue[]
+
+  @@unique([checklistItemId, revision])
+  @@index([checklistItemId, submittedAt])
+  @@index([submittedById])
+  @@map("checklist_form_submissions")
+}
+
+model ChecklistFormValue {
+  id           String                  @id @default(uuid()) @db.Uuid
+  submissionId String                  @map("submission_id") @db.Uuid
+  formFieldId  String                  @map("form_field_id") @db.Uuid
+  value        Json?
+  submission   ChecklistFormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  formField    FormField               @relation(fields: [formFieldId], references: [id], onDelete: Restrict)
+
+  @@unique([submissionId, formFieldId])
+  @@index([formFieldId])
+  @@map("checklist_form_values")
 }
 
 model Label {

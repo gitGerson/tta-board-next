@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { FileText } from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireCurrentUser } from "@/app/lib/dal/auth";
 import { getBoardByRouteKey, getCardDetails } from "@/app/lib/dal/boards";
 import { NotFoundError } from "@/app/lib/dal/errors";
+import { listPublishedFormOptions } from "@/app/lib/forms/form-dal";
 import {
   listAssignableUsers,
   listMentionableUsers,
@@ -55,6 +58,7 @@ export default async function BoardPage({
   const { card: cardId } = await searchParams;
   const { board, users, mentionableUsers, currentUser } =
     await loadBoardPageData(boardKey);
+  const publishedForms = await listPublishedFormOptions(board.id);
 
   const selectedCard = cardId
     ? await getCardDetails(board.id, cardId)
@@ -72,12 +76,24 @@ export default async function BoardPage({
         title={board.name}
         count={totalCards}
         subtitle={board.description}
+        actions={
+          board.canManageForms ? (
+            <Link
+              href={`/board/${board.routeKey}/forms`}
+              className="hidden h-10 items-center gap-1.5 rounded-full bg-[#e8f3dc] px-3 text-xs font-bold text-[#4f772d] hover:bg-[#dbecc8] sm:inline-flex"
+            >
+              <FileText size={15} />
+              Forms
+            </Link>
+          ) : null
+        }
       />
       <KanbanBoard
         initialBoard={board}
         users={users}
         mentionableUsers={mentionableUsers}
         currentUser={currentUser}
+        publishedForms={publishedForms}
         selectedCard={selectedCard}
         requestedCardMissing={Boolean(cardId && !selectedCard)}
       />

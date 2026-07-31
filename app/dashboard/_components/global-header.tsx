@@ -1,6 +1,7 @@
 import { Bell, Filter, LogOut, Moon, Share2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { logoutAction } from "@/app/dashboard/actions";
 
 /**
@@ -26,12 +27,14 @@ export function GlobalHeader({
   count,
   subtitle,
   notificationCount = 0,
+  actions,
 }: {
   user: { name: string; email: string };
   title: string;
   count?: number;
   subtitle?: string | null;
   notificationCount?: number;
+  actions?: ReactNode;
 }) {
   return (
     <header className="flex shrink-0 items-center gap-2 rounded-2xl bg-white px-3 py-2.5 shadow-[0_10px_24px_rgb(15_23_42/0.14)] sm:px-4">
@@ -67,6 +70,7 @@ export function GlobalHeader({
       </div>
 
       <div className="flex flex-1 items-center justify-end gap-2">
+        {actions}
         <button
           type="button"
           disabled

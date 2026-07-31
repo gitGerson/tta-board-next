@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Eye,
   EyeOff,
+  FileText,
   ListChecks,
   Pencil,
   Plus,
@@ -31,11 +32,13 @@ import type {
 } from "@/app/lib/dal/boards";
 import type { AssignableUserDTO } from "@/app/lib/dal/users";
 import type { RichTextDocument } from "@/app/lib/rich-text/content";
+import type { PublishedFormOptionDTO } from "@/app/lib/forms/types";
 import { ChecklistGroupDescriptionEditor } from "./checklist-group-description-editor";
 import { DatePicker } from "./date-picker";
 import { DateRangePicker } from "./date-range-picker";
 import { RichTextContent } from "./rich-text-content";
 import { SingleMemberPicker } from "./single-member-picker";
+import { ChecklistFormModal } from "./checklist-form-modal";
 
 function dateInputValue(value: string | null): string {
   return value ? value.slice(0, 10) : "";
@@ -67,15 +70,6 @@ function utcDate(value: FormDataEntryValue | null): Date | null {
   return date ? new Date(`${date}T00:00:00.000Z`) : null;
 }
 
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
 function donePercent(items: ChecklistItemDTO[]): number {
   if (items.length === 0) return 0;
   return Math.round(
@@ -91,6 +85,8 @@ function ChecklistItemRow({
   onToggle,
   onMove,
   onEdit,
+  onOpenForm,
+  canOpenForm,
   onDelete,
 }: {
   item: ChecklistItemDTO;
@@ -100,6 +96,8 @@ function ChecklistItemRow({
   onToggle: (isDone: boolean) => void;
   onMove: (targetIndex: number) => void;
   onEdit: () => void;
+  onOpenForm: () => void;
+  canOpenForm: boolean;
   onDelete: () => void;
 }) {
   return (
@@ -125,26 +123,30 @@ function ChecklistItemRow({
         )}
       </div>
 
-      {item.assignees.length > 0 && (
-        <span className="flex shrink-0 -space-x-1.5">
-          {item.assignees.slice(0, 3).map((user) => (
-            <span
-              key={user.id}
-              title={user.name}
-              className="grid size-6 place-items-center rounded-full bg-indigo-500 text-[9px] font-extrabold text-white ring-2 ring-white"
-            >
-              {initials(user.name)}
-            </span>
-          ))}
-          {item.assignees.length > 3 && (
-            <span className="grid size-6 place-items-center rounded-full bg-slate-300 text-[9px] font-extrabold text-slate-700 ring-2 ring-white">
-              +{item.assignees.length - 3}
-            </span>
-          )}
+      {item.pic && (
+        <span className="shrink-0 rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold text-indigo-600">
+          PIC {item.pic.name}
+        </span>
+      )}
+      {item.form && (
+        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+          {item.form.name} v{item.form.version}
         </span>
       )}
 
       <span className="flex shrink-0 items-center opacity-0 transition group-hover/item:opacity-100 focus-within:opacity-100">
+        {(item.form || item.revisionCount > 0) && (
+          <button
+            type="button"
+            onClick={onOpenForm}
+            disabled={!canOpenForm}
+            aria-label={`Open ${item.title} form`}
+            title={canOpenForm ? "Open form" : "Only the checklist PIC can open this form"}
+            className="grid size-7 place-items-center rounded text-amber-500 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-30"
+          >
+            <FileText size={14} aria-hidden="true" />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onMove(index - 1)}
@@ -190,11 +192,15 @@ export function CardChecklists({
   cardId,
   groups,
   users,
+  publishedForms,
+  currentUserId,
   onError,
 }: {
   cardId: string;
   groups: ChecklistGroupDTO[];
   users: AssignableUserDTO[];
+  publishedForms: PublishedFormOptionDTO[];
+  currentUserId: string;
   onError: (result: KanbanActionResult) => void;
 }) {
   const router = useRouter();
@@ -205,6 +211,7 @@ export function CardChecklists({
     null,
   );
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [openFormItemId, setOpenFormItemId] = useState<string | null>(null);
   const [hiddenDescriptionIds, setHiddenDescriptionIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -265,6 +272,7 @@ export function CardChecklists({
     event: FormEvent<HTMLFormElement>,
     groupId: string,
     itemId?: string,
+    confirmFormChange = false,
   ) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -272,7 +280,9 @@ export function CardChecklists({
       title: String(form.get("title") || ""),
       description: String(form.get("description") || "") || null,
       dueAt: utcDate(form.get("dueAt")),
-      assigneeIds: form.getAll("assigneeIds").map(String),
+      picId: String(form.get("picId") || "") || null,
+      formVersionId: String(form.get("formVersionId") || "") || null,
+      confirmFormChange,
     };
 
     run(
@@ -519,6 +529,8 @@ export function CardChecklists({
                       );
                       setAddingItemGroupId(null);
                     }}
+                    onOpenForm={() => setOpenFormItemId(item.id)}
+                    canOpenForm={item.pic?.id === currentUserId}
                     onDelete={() =>
                       run(() => deleteChecklistItemAction(item.id))
                     }
@@ -528,9 +540,10 @@ export function CardChecklists({
                       <ChecklistItemForm
                         item={item}
                         users={users}
+                        publishedForms={publishedForms}
                         disabled={isPending}
-                        onSubmit={(event) =>
-                          submitItem(event, group.id, item.id)
+                        onSubmit={(event, confirmed) =>
+                          submitItem(event, group.id, item.id, confirmed)
                         }
                         onCancel={() => setEditingItemId(null)}
                       />
@@ -543,6 +556,7 @@ export function CardChecklists({
             {addingItemGroupId === group.id ? (
               <ChecklistItemForm
                 users={users}
+                publishedForms={publishedForms}
                 disabled={isPending}
                 onSubmit={(event) => submitItem(event, group.id)}
                 onCancel={() => setAddingItemGroupId(null)}
@@ -563,6 +577,12 @@ export function CardChecklists({
           </article>
         );
       })}
+      {openFormItemId && (
+        <ChecklistFormModal
+          itemId={openFormItemId}
+          onClose={() => setOpenFormItemId(null)}
+        />
+      )}
     </section>
   );
 }
@@ -570,31 +590,43 @@ export function CardChecklists({
 function ChecklistItemForm({
   item,
   users,
+  publishedForms,
   disabled,
   onSubmit,
   onCancel,
 }: {
   item?: ChecklistItemDTO;
   users: AssignableUserDTO[];
+  publishedForms: PublishedFormOptionDTO[];
   disabled: boolean;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>, confirmed: boolean) => void;
   onCancel: () => void;
 }) {
   const [dueDate, setDueDate] = useState(
     dateInputValue(item?.dueAt || null),
   );
-  const [picId, setPicId] = useState(item?.assignees[0]?.id || "");
-  const [picChanged, setPicChanged] = useState(false);
-  const assigneeIds =
-    item && !picChanged
-      ? item.assignees.map((assignee) => assignee.id)
-      : picId
-        ? [picId]
-        : [];
+  const [picId, setPicId] = useState(item?.pic?.id || "");
+  const [formVersionId, setFormVersionId] = useState(
+    item?.form?.versionId || "",
+  );
 
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={(event) => {
+        const changed =
+          Boolean(item) && formVersionId !== (item?.form?.versionId || "");
+        const confirmed =
+          !changed ||
+          !item?.revisionCount ||
+          window.confirm(
+            "Change this form? Existing submission revisions will be preserved.",
+          );
+        if (!confirmed) {
+          event.preventDefault();
+          return;
+        }
+        onSubmit(event, changed && Boolean(item?.revisionCount));
+      }}
       className="space-y-2 border-t border-slate-200 px-3 py-2.5"
     >
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(10rem,0.65fr)]">
@@ -613,18 +645,31 @@ function ChecklistItemForm({
           disabled={disabled}
           onChange={(userId) => {
             setPicId(userId);
-            setPicChanged(true);
           }}
         />
-        {assigneeIds.map((assigneeId) => (
-          <input
-            key={assigneeId}
-            type="hidden"
-            name="assigneeIds"
-            value={assigneeId}
-          />
-        ))}
+        <input type="hidden" name="picId" value={picId} />
       </div>
+      <select
+        name="formVersionId"
+        value={formVersionId}
+        onChange={(event) => setFormVersionId(event.target.value)}
+        className="h-9 w-full max-w-sm rounded-lg border border-slate-300 bg-white px-2.5 text-xs outline-none focus:border-[#689f38]"
+      >
+        <option value="">No form</option>
+        {item?.form &&
+          !publishedForms.some(
+            (form) => form.versionId === item.form?.versionId,
+          ) && (
+            <option value={item.form.versionId}>
+              {item.form.name} v{item.form.version} (assigned)
+            </option>
+          )}
+        {publishedForms.map((form) => (
+          <option key={form.versionId} value={form.versionId}>
+            {form.name} v{form.version}
+          </option>
+        ))}
+      </select>
       <div className="max-w-sm">
         <DatePicker
           name="dueAt"

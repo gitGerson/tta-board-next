@@ -61,7 +61,15 @@ export type ChecklistItemDTO = {
   dueAt: string | null;
   isDone: boolean;
   completedAt: string | null;
-  assignees: UserOptionDTO[];
+  revisionCount: number;
+  pic: UserOptionDTO | null;
+  form: {
+    formId: string;
+    versionId: string;
+    name: string;
+    version: number;
+    revisionCount: number;
+  } | null;
 };
 
 export type ChecklistGroupDTO = {
@@ -89,6 +97,7 @@ export type BoardDTO = {
   name: string;
   description: string | null;
   updatedAt: string;
+  canManageForms: boolean;
   labels: LabelDTO[];
   columns: BoardColumnDTO[];
 };
@@ -279,6 +288,7 @@ async function loadBoard(
       routeKey: true,
       name: true,
       description: true,
+      createdById: true,
       updatedAt: true,
       labels: {
         orderBy: [{ name: "asc" }, { id: "asc" }],
@@ -332,6 +342,7 @@ async function loadBoard(
     name: board.name,
     description: board.description,
     updatedAt: board.updatedAt.toISOString(),
+    canManageForms: board.createdById === currentUserId,
     labels: board.labels,
     columns: board.columns.map((column) => ({
       id: column.id,
@@ -428,11 +439,15 @@ export async function getCardDetails(
               dueAt: true,
               isDone: true,
               completedAt: true,
-              assignees: {
+              pic: { select: { id: true, displayName: true } },
+              formVersion: {
                 select: {
-                  user: { select: { id: true, displayName: true } },
+                  id: true,
+                  version: true,
+                  form: { select: { id: true, name: true } },
                 },
               },
+              _count: { select: { formSubmissions: true } },
             },
           },
         },
@@ -478,10 +493,19 @@ export async function getCardDetails(
       dueAt: item.dueAt?.toISOString() ?? null,
       isDone: item.isDone,
       completedAt: item.completedAt?.toISOString() ?? null,
-      assignees: item.assignees.map(({ user }) => ({
-        id: user.id,
-        name: user.displayName,
-      })),
+      revisionCount: item._count.formSubmissions,
+      pic: item.pic
+        ? { id: item.pic.id, name: item.pic.displayName }
+        : null,
+      form: item.formVersion
+        ? {
+            formId: item.formVersion.form.id,
+            versionId: item.formVersion.id,
+            name: item.formVersion.form.name,
+            version: item.formVersion.version,
+            revisionCount: item._count.formSubmissions,
+          }
+        : null,
     })),
   }));
   const items = checklistGroups.flatMap((group) => group.items);

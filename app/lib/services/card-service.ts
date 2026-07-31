@@ -183,7 +183,7 @@ export async function updateCardMembers(
           {
             items: {
               some: {
-                assignees: { some: { userId: { notIn: memberIds } } },
+                picId: { not: null, notIn: memberIds },
               },
             },
           },

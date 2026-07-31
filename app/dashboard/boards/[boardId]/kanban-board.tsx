@@ -53,6 +53,7 @@ import type {
   AssignableUserDTO,
   MentionableUserDTO,
 } from "@/app/lib/dal/users";
+import type { PublishedFormOptionDTO } from "@/app/lib/forms/types";
 import { boardChannel } from "@/app/lib/realtime/protocol";
 import { useRealtime } from "@/app/lib/realtime/use-realtime";
 import {
@@ -471,6 +472,7 @@ export function KanbanBoard({
   currentUser,
   selectedCard,
   requestedCardMissing,
+  publishedForms,
 }: {
   initialBoard: BoardDTO;
   users: AssignableUserDTO[];
@@ -478,6 +480,7 @@ export function KanbanBoard({
   currentUser: CurrentUser;
   selectedCard: CardDetailsDTO | null;
   requestedCardMissing: boolean;
+  publishedForms: PublishedFormOptionDTO[];
 }) {
   const router = useRouter();
   const [boardState, setBoardState] = useState({
@@ -878,6 +881,7 @@ export function KanbanBoard({
           users={users}
           mentionableUsers={mentionableUsers}
           currentUser={currentUser}
+          publishedForms={publishedForms}
           createColumnId={createCardColumnId}
           onClose={closeCard}
         />
@@ -891,6 +895,7 @@ export function KanbanBoard({
           users={users}
           mentionableUsers={mentionableUsers}
           currentUser={currentUser}
+          publishedForms={publishedForms}
           details={selectedCard}
           remoteUpdateAvailable={remoteUpdateAvailable}
           onReloadRemote={() => {

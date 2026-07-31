@@ -199,7 +199,9 @@ export const createChecklistItemSchema = z.object({
   title: z.string().trim().min(1).max(200),
   description: optionalText,
   dueAt: z.date().nullable().optional().default(null),
-  assigneeIds: z.array(uuid).max(20).default([]),
+  picId: uuid.nullable().optional().default(null),
+  formVersionId: uuid.nullable().optional().default(null),
+  confirmFormChange: z.boolean().optional().default(false),
 });
 
 export const updateChecklistItemSchema = createChecklistItemSchema

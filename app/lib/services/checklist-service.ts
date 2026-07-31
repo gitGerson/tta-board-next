@@ -220,20 +220,41 @@ export async function deleteChecklistGroup(
 export async function createChecklistItem(input: CreateChecklistItemInput) {
   const currentUser = await requireCurrentUser();
   const data = createChecklistItemSchema.parse(input);
-  const assigneeIds = [...new Set(data.assigneeIds)];
 
   return db.$transaction(async (tx) => {
     const group = await tx.checklistGroup.findUnique({
       where: { id: data.groupId },
-      select: { id: true, cardId: true },
+      select: {
+        id: true,
+        cardId: true,
+        card: { select: { column: { select: { boardId: true } } } },
+      },
     });
     if (!group) {
       throw new NotFoundError("Checklist group");
     }
     await assertCardAccess(tx, group.cardId, currentUser.id);
 
-    await assertActiveUsers(tx, assigneeIds);
-    await assertCardUsersAreMembers(tx, group.cardId, assigneeIds);
+    await assertActiveUsers(tx, data.picId ? [data.picId] : []);
+    await assertCardUsersAreMembers(
+      tx,
+      group.cardId,
+      data.picId ? [data.picId] : [],
+    );
+    if (data.formVersionId) {
+      const version = await tx.formVersion.findFirst({
+        where: {
+          id: data.formVersionId,
+          status: "PUBLISHED",
+          form: {
+            boardId: group.card.column.boardId,
+            archivedAt: null,
+          },
+        },
+        select: { id: true },
+      });
+      if (!version) throw new ConflictError("Select an active published form.");
+    }
 
     return tx.checklistItem.create({
       data: {
@@ -241,6 +262,8 @@ export async function createChecklistItem(input: CreateChecklistItemInput) {
         title: data.title,
         description: data.description,
         dueAt: data.dueAt,
+        picId: data.picId,
+        formVersionId: data.formVersionId,
         position: await nextPosition(
           tx.checklistItem.aggregate({
             where: { groupId: group.id },
@@ -248,9 +271,9 @@ export async function createChecklistItem(input: CreateChecklistItemInput) {
           }),
         ),
         assignees: {
-          create: assigneeIds.map((userId) => ({
-            user: { connect: { id: userId } },
-          })),
+          create: data.picId
+            ? [{ user: { connect: { id: data.picId } } }]
+            : [],
         },
       },
       select: { id: true },
@@ -263,23 +286,61 @@ export async function updateChecklistItem(
 ): Promise<void> {
   const currentUser = await requireCurrentUser();
   const data = updateChecklistItemSchema.parse(input);
-  const assigneeIds = data.assigneeIds
-    ? [...new Set(data.assigneeIds)]
-    : undefined;
 
   await db.$transaction(async (tx) => {
     const item = await tx.checklistItem.findUnique({
       where: { id: data.itemId },
-      select: { id: true, group: { select: { cardId: true } } },
+      select: {
+        id: true,
+        formVersionId: true,
+        group: {
+          select: {
+            cardId: true,
+            card: { select: { column: { select: { boardId: true } } } },
+          },
+        },
+      },
     });
     if (!item) {
       throw new NotFoundError("Checklist item");
     }
     await assertCardAccess(tx, item.group.cardId, currentUser.id);
 
-    if (assigneeIds) {
-      await assertActiveUsers(tx, assigneeIds);
-      await assertCardUsersAreMembers(tx, item.group.cardId, assigneeIds);
+    if (data.picId !== undefined) {
+      await assertActiveUsers(tx, data.picId ? [data.picId] : []);
+      await assertCardUsersAreMembers(
+        tx,
+        item.group.cardId,
+        data.picId ? [data.picId] : [],
+      );
+    }
+    if (data.formVersionId) {
+      const version = await tx.formVersion.findFirst({
+        where: {
+          id: data.formVersionId,
+          status: "PUBLISHED",
+          form: {
+            boardId: item.group.card.column.boardId,
+            archivedAt: null,
+          },
+        },
+        select: { id: true },
+      });
+      if (!version) throw new ConflictError("Select an active published form.");
+    }
+    if (
+      data.formVersionId !== undefined &&
+      data.formVersionId !== item.formVersionId &&
+      !data.confirmFormChange
+    ) {
+      const revisions = await tx.checklistFormSubmission.count({
+        where: { checklistItemId: item.id },
+      });
+      if (revisions > 0) {
+        throw new ConflictError(
+          "Confirm the form change. Existing revisions will be preserved.",
+        );
+      }
     }
 
     await tx.checklistItem.update({
@@ -290,13 +351,17 @@ export async function updateChecklistItem(
           ? { description: data.description }
           : {}),
         ...(data.dueAt !== undefined ? { dueAt: data.dueAt } : {}),
-        ...(assigneeIds !== undefined
+        ...(data.formVersionId !== undefined
+          ? { formVersionId: data.formVersionId }
+          : {}),
+        ...(data.picId !== undefined
           ? {
+              picId: data.picId,
               assignees: {
                 deleteMany: {},
-                create: assigneeIds.map((userId) => ({
-                  user: { connect: { id: userId } },
-                })),
+                create: data.picId
+                  ? [{ user: { connect: { id: data.picId } } }]
+                  : [],
               },
             }
           : {}),
